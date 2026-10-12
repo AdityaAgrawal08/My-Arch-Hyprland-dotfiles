@@ -1,8 +1,9 @@
 #!/bin/bash
 
 # Switch to the previous / next workspace that has windows.
-# Unlike circular_workspace.sh (ALT + TAB) this does NOT wrap around:
-# if there is no workspace in that direction, nothing happens.
+# This wraps around (like circular_workspace.sh for ALT + TAB):
+# at the last workspace "next" jumps to the first one, and at the
+# first workspace "prev" jumps to the last one.
 #
 # Usage: switch_workspace.sh next|prev
 
@@ -34,6 +35,8 @@ case "$direction" in
                 break
             fi
         done
+        # Wrap around: nothing to the right -> first workspace.
+        [ -n "$target" ] || target="${workspaces[0]}"
         ;;
     prev)
         for (( i = ${#workspaces[@]} - 1; i >= 0; i-- )); do
@@ -42,10 +45,12 @@ case "$direction" in
                 break
             fi
         done
+        # Wrap around: nothing to the left -> last workspace.
+        [ -n "$target" ] || target="${workspaces[${#workspaces[@]} - 1]}"
         ;;
 esac
 
-# No workspace in that direction -> stay where we are.
+# Safety net: no workspace to switch to (only the current one has windows).
 [ -n "$target" ] || exit 0
 
 hyprctl dispatch "hl.dsp.focus({ workspace = $target })" >/dev/null 2>&1

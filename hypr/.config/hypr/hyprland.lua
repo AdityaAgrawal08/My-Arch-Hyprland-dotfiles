@@ -116,7 +116,7 @@ hl.config({
     kb_model     = "",
     kb_options   = "",
     kb_rules     = "",
-    follow_mouse = 0,
+    follow_mouse = 1,
     sensitivity  = 0,
 
     touchpad     = {
@@ -200,20 +200,9 @@ hl.bind(mainMod .. " + P", hl.dsp.window.pseudo())
 -- Layout
 hl.bind(mainMod .. " + J", hl.dsp.layout("togglesplit"))
 
--- Focus movement
-hl.bind(mainMod .. " + left", hl.dsp.focus({ direction = "l" }))
-hl.bind(mainMod .. " + right", hl.dsp.focus({ direction = "r" }))
-hl.bind(mainMod .. " + up", hl.dsp.focus({ direction = "u" }))
-hl.bind(mainMod .. " + down", hl.dsp.focus({ direction = "d" }))
-
--- Workspace navigation (SUPER + SHIFT + arrow): previous / next workspace that
--- has windows. Stops at the ends - no wrap-around.
--- ALT + TAB keeps its circular behaviour (circular_workspace.sh).
-hl.bind(mainMod .. " + SHIFT + left", hl.dsp.exec_cmd("~/.config/hypr/scripts/switch_workspace.sh prev"))
-hl.bind(mainMod .. " + SHIFT + right", hl.dsp.exec_cmd("~/.config/hypr/scripts/switch_workspace.sh next"))
-hl.bind(mainMod .. " + SHIFT + up", hl.dsp.exec_cmd("~/.config/hypr/scripts/switch_workspace.sh prev"))
-hl.bind(mainMod .. " + SHIFT + down", hl.dsp.exec_cmd("~/.config/hypr/scripts/switch_workspace.sh next"))
-
+-- SUPER + {ARROW} to move around the workspace
+hl.bind(mainMod .. " + left", hl.dsp.exec_cmd("~/.config/hypr/scripts/switch_workspace.sh prev"))
+hl.bind(mainMod .. " + right", hl.dsp.exec_cmd("~/.config/hypr/scripts/switch_workspace.sh next"))
 
 -- Workspaces (focus)
 hl.bind(mainMod .. " + 1", hl.dsp.focus({ workspace = 1 }))
