@@ -5,12 +5,6 @@ set -g fish_color_match cyan
 set -g fish_color_autosuggestion brgrey
 set -g fish_greeting ""
 
-# Useful abbreviations
-abbr --add upd "sudo pacman -Syu"
-abbr --add inst "sudo pacman -S"
-abbr --add rem "sudo pacman -Rns"
-abbr --add ocr "opencode"
-
 # Set editor
 set -gx EDITOR nvim
 set -gx VISUAL nvim
