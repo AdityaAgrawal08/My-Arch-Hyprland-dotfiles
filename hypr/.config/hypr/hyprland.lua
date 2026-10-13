@@ -296,3 +296,10 @@ hl.window_rule({
   size   = { 1100, 850 },
   center = true,
 })
+
+-- Kitty Blur -> Transparent
+hl.window_rule({
+  name    = "kitty-no-blur",
+  match   = { class = "^kitty$" },
+  no_blur = true,
+})
