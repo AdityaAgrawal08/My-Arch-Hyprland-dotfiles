@@ -1,4 +1,4 @@
-function terminal --description "Fade kitty background opacity"
+function terminal --description "Fade kitty background opacity and sync nvim"
     set -l faint 0.2   # transparent level
     set -l solid 1.0   # opaque level
     set -l frames 12   # animation steps
@@ -28,16 +28,26 @@ function terminal --description "Fade kitty background opacity"
             return 1
     end
 
-    # Already there? Just set it, no animation needed.
     if test (math "abs($target - $current)") -lt 0.02
         kitten @ set-background-opacity --all $target
-        return $status
+    else
+        for i in (seq 1 $frames)
+            set -l v (math -s2 "$current + ($target - $current) * $i / $frames")
+            kitten @ set-background-opacity --all $v; or return 1
+            if test $i -lt $frames
+                sleep $gap
+            end
+        end
     end
 
-    # Fade: step the opacity toward the target
-    for i in (seq 1 $frames)
-        set -l v (math -s2 "$current + ($target - $current) * $i / $frames")
-        kitten @ set-background-opacity --all $v; or return 1
-        test $i -lt $frames; and sleep $gap
+    # Publish the final state so nvim (and anything else) can follow it
+    if test -n "$KITTY_PID"
+        set -l rundir "$XDG_RUNTIME_DIR"
+        test -z "$rundir"; and set rundir /tmp
+        if test $target = $solid
+            echo opaque > $rundir/kitty-mode-$KITTY_PID
+        else
+            echo transparent > $rundir/kitty-mode-$KITTY_PID
+        end
     end
 end
