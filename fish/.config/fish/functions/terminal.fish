@@ -40,7 +40,7 @@ function terminal --description "Fade kitty background opacity and sync nvim"
         end
     end
 
-    # Publish the final state so nvim (and anything else) can follow it
+    # Publish the state for nvim (per kitty instance)
     if test -n "$KITTY_PID"
         set -l rundir "$XDG_RUNTIME_DIR"
         test -z "$rundir"; and set rundir /tmp
@@ -50,4 +50,8 @@ function terminal --description "Fade kitty background opacity and sync nvim"
             echo transparent > $rundir/kitty-mode-$KITTY_PID
         end
     end
+
+    # Remember the preference for terminals opened later
+    mkdir -p "$HOME/.local/state"
+    echo $target > "$HOME/.local/state/kitty-opacity"
 end
