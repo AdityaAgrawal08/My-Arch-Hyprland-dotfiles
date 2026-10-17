@@ -187,7 +187,6 @@ hl.bind(mainMod .. " + E", hl.dsp.exec_cmd(fileManager))
 hl.bind(mainMod .. " + R", hl.dsp.exec_cmd(menu))
 hl.bind(mainMod .. " + B", hl.dsp.exec_cmd("~/.config/wofi/browser-launcher.sh"))
 hl.bind(mainMod .. " + N", hl.dsp.exec_cmd("/home/aditya/.config/hypr/scripts/night_light_toggle.sh"))
-hl.bind(mainMod .. " + I", hl.dsp.exec_cmd("~/.config/hypr/scripts/system-dashboard.sh"))
 hl.bind(mainMod .. " + SHIFT + V", hl.dsp.exec_cmd("cliphist list | wofi --dmenu | cliphist decode | wl-copy"))
 
 -- Session
@@ -288,14 +287,6 @@ hl.window_rule({
   name        = "apply-something",
   match       = { class = "my-window" },
   border_size = 10,
-})
-
-hl.window_rule({
-  name   = "system-dashboard-rules",
-  match  = { class = "^(com\\.system\\.dashboard|system-dashboard)$" },
-  float  = true,
-  size   = { 1100, 850 },
-  center = true,
 })
 
 -- Kitty Blur -> Transparent

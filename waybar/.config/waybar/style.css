@@ -19,8 +19,7 @@ window#waybar {
 #keyboard-state,
 #language,
 #mpd,
-#tray,
-#custom-dashboard {
+#tray {
   background: #1d1d1d;
   border: 1px solid #292929;
   border-radius: 8px;
@@ -84,7 +83,6 @@ window#waybar {
 #keyboard-state:hover,
 #language:hover,
 #mpd:hover,
-#custom-dashboard:hover,
 #tray:hover {
   background: #252525;
   color: #eceef4;

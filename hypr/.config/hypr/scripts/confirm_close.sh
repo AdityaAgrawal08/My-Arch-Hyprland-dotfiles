@@ -62,7 +62,7 @@ close_window() {
 }
 
 # Bypass confirmation for utility/overlay windows
-if [[ "$WINDOW_CLASS" =~ ^(wofi|system-dashboard|com\.system\.dashboard)$ ]]; then
+if [[ "$WINDOW_CLASS" =~ ^(wofi)$ ]]; then
     close_window
     exit 0
 fi

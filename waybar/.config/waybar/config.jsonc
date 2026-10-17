@@ -19,7 +19,6 @@
     "backlight",
     "keyboard-state",
     "sway/language",
-    "custom/dashboard",
     "tray"
   ],
   "hyprland/workspaces": {
@@ -179,10 +178,5 @@
     "interval": 5,
     "on-click": "blueman-manager",
     "tooltip": true
-  },
-  "custom/dashboard": {
-    "format": "⚙",
-    "on-click": "~/.config/hypr/scripts/system-dashboard.sh",
-    "tooltip": false
   }
 }
