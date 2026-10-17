@@ -172,3 +172,6 @@ function lock_important_on_exit --on-event fish_exit
         end
     end
 end
+
+# opencode
+fish_add_path /home/aditya/.opencode/bin

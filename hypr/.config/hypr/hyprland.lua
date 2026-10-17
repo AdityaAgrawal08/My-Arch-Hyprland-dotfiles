@@ -41,6 +41,7 @@ hl.env("MOZ_ENABLE_WAYLAND", "1")
 
 hl.on("hyprland.start", function()
   hl.exec_cmd("~/.config/hypr/scripts/battery-notify.sh")
+  hl.exec_cmd("python3 ~/.config/hypr/scripts/adaptive-font.py")
   hl.exec_cmd("nm-applet")
   hl.exec_cmd("waybar")
   hl.exec_cmd("hyprpaper -c ~/.config/hypr/hyprpaper.conf")
