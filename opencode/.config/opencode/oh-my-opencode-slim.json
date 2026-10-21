@@ -1,0 +1,117 @@
+{
+  "$schema": "https://unpkg.com/oh-my-opencode-slim@latest/oh-my-opencode-slim.schema.json",
+  "preset": "opencode-go",
+  "presets": {
+    "openai": {
+      "orchestrator": {
+        "model": "openai/gpt-6-sol",
+        "variant": "high",
+        "skills": [
+          "*"
+        ],
+        "mcps": [
+          "*",
+          "!context7"
+        ]
+      },
+      "oracle": {
+        "model": "openai/gpt-6-astra",
+        "variant": "high",
+        "skills": [
+          "simplify"
+        ],
+        "mcps": []
+      },
+      "librarian": {
+        "model": "openai/gpt-6-luna",
+        "variant": "low",
+        "skills": [],
+        "mcps": [
+          "context7",
+          "gh_grep"
+        ]
+      },
+      "explorer": {
+        "model": "openai/gpt-6-luna",
+        "variant": "low",
+        "skills": [],
+        "mcps": []
+      },
+      "designer": {
+        "model": "openai/gpt-6-luna",
+        "variant": "medium",
+        "skills": [],
+        "mcps": []
+      },
+      "fixer": {
+        "model": "openai/gpt-6-luna",
+        "variant": "high",
+        "skills": [],
+        "mcps": []
+      }
+    },
+    "opencode-go": {
+      "orchestrator": {
+        "model": "opencode-go/muse-spark-1.3-contributor",
+        "variant": "xhigh",
+        "skills": [
+          "*"
+        ],
+        "mcps": [
+          "*",
+          "!context7"
+        ]
+      },
+      "oracle": {
+        "model": "opencode-go/mimo-v2.6-pro",
+        "skills": [
+          "simplify"
+        ],
+        "mcps": []
+      },
+      "explorer": {
+        "model": "opencode-go/deepseek-v4.1-flash",
+        "variant": "max",
+        "skills": [],
+        "mcps": [
+          "serena",
+          "github"
+        ]
+      },
+      "librarian": {
+        "model": "opencode-go/muse-spark-1.3-contributor",
+        "variant": "high",
+        "skills": [],
+        "mcps": [
+          "context7",
+          "gh_grep",
+          "searxng",
+          "deepwiki"
+        ]
+      },
+      "designer": {
+        "model": "opencode-go/mimo-v2.6-flash",
+        "variant": "high",
+        "skills": [],
+        "mcps": [
+          "playwright"
+        ]
+      },
+      "fixer": {
+        "model": "opencode-go/deepseek-v4.1-flash",
+        "variant": "max",
+        "skills": [],
+        "mcps": [
+          "playwright",
+          "github",
+          "serena"
+        ]
+      },
+      "observer": {
+        "model": "opencode-go/mimo-v2.5",
+        "skills": [],
+        "mcps": []
+      }
+    }
+  }
+}

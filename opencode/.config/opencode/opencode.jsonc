@@ -1,3 +1,79 @@
 {
-  "$schema": "https://opencode.ai/config.json"
+  "$schema": "https://opencode.ai/config.json",
+  "providers": {
+    "shooterdelta1": {
+      "name": "AiHubMix",
+      "package": "aisdk:@ai-sdk/openai-compatible",
+      "settings": {
+        "baseURL": "https://aihubmix.com/v1"
+      },
+      "headers": {
+        "Authorization": "Bearer {env:AIHUBMIX_API_KEY}"
+      },
+      "models": {
+        "coding-glm-5.3-flash-free": {
+          "name": "GLM Flash"
+        },
+        "coding-glm-5.3-free": {
+          "name": "GLM"
+        }
+      }
+    }
+  },
+  "mcp": {
+    "servers": {
+      "playwright": {
+        "type": "local",
+        "command": ["npx", "-y", "@playwright/mcp@latest", "--headless", "--isolated"]
+      },
+      "github": {
+        "type": "remote",
+        "url": "https://api.githubcopilot.com/mcp/",
+        "oauth": false,
+        "headers": {
+          "Authorization": "Bearer {env:GITHUB_PERSONAL_ACCESS_TOKEN}"
+        }
+      },
+      "searxng": {
+        "type": "local",
+        "command": ["npx", "-y", "@kevinwatt/mcp-server-searxng"]
+      },
+      "serena": {
+        "type": "local",
+        "command": ["uvx", "--from", "git+https://github.com/oraios/serena", "serena", "start-mcp-server", "--context", "ide-assistant"],
+        "timeout": 30000
+      },
+      "memory": {
+        "type": "local",
+        "command": ["npx", "-y", "@modelcontextprotocol/server-memory"]
+      },
+      "deepwiki": {
+        "type": "remote",
+        "url": "https://mcp.deepwiki.com/mcp"
+      }
+    }
+  },
+  "permissions": [
+    { "action": "external_directory", "resource": "/tmp/opencode/*", "effect": "allow" },
+    { "action": "read", "resource": "/tmp/opencode/*", "effect": "allow" },
+    { "action": "edit", "resource": "/tmp/opencode/*", "effect": "allow" }
+  ],
+  "plugins": [
+    "oh-my-opencode-slim"
+  ],
+  "formatter": true,
+  "compaction": {
+    "auto": true,
+    "keep": {
+      "tokens": 15000
+    },
+    "buffer": 20000
+  },
+  "websearch": {
+    "provider": "random"
+  },
+  "lsp": true,
+  "experimental": {
+    "todo": true
+  }
 }
