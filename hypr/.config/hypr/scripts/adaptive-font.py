@@ -34,6 +34,7 @@ DEBOUNCE      = 0.3    # seconds to wait after the last window event
 RUNTIME = os.environ.get("XDG_RUNTIME_DIR", "/tmp")
 KITTEN  = shutil.which("kitten") or "/usr/bin/kitten"
 BASE_AREA = 1276.0 * 674.0
+BASE_SCALE = 1.5
 
 WATCHED_EVENTS = {
     "openwindow", "closewindow", "movewindow", "resizewindow",
@@ -50,10 +51,12 @@ def hyprctl_json(*args: str):
 
 def baseline_area() -> float:
     """Usable area (logical px) of one full-size tiled window."""
+    global BASE_SCALE
     try:
         mons = hyprctl_json("monitors")
         m = next((x for x in mons if x.get("focused")), mons[0])
         scale = float(m.get("scale", 1.0)) or 1.0
+        BASE_SCALE  = scale
         w = m["width"] / scale - 4.0                # outer gaps/borders
         reserved = m.get("reserved") or [0, 0, 0, 0]
         h = m["height"] / scale - 4.0 - max(reserved)   # status bar etc.
@@ -64,9 +67,12 @@ def baseline_area() -> float:
     return BASE_AREA
 
 
-def target_size(area: float):
+def target_size(area: float, monitor_scale: float):
     """Return (font_size, padding) for a window of the given pixel area."""
     scale = math.sqrt(max(area, 1.0) / BASE_AREA)
+    # Keep the terminal's physical size in sync with the compositor's
+    # global UI scale instead of cancelling monitor-scale changes.
+    scale *= monitor_scale / BASE_SCALE
     font = round(max(MIN_FONT, min(MAX_FONT, BASE_FONT * scale)), 1)
     pad = None
     if SCALE_PADDING:
@@ -90,8 +96,10 @@ def push(pid: int, font: float, pad) -> None:
 def apply_all(applied: dict) -> None:
     try:
         clients = hyprctl_json("clients")
+        mons = hyprctl_json("monitors")
     except Exception:
         return
+    scale_by_id = {m.get("id"): float(m.get("scale") or 1.0) for m in mons}
     alive = set()
     for c in clients:
         if c.get("class") != "kitty" or not c.get("mapped"):
@@ -101,7 +109,8 @@ def apply_all(applied: dict) -> None:
             continue
         alive.add(pid)
         w, h = c.get("size", [0, 0])
-        font, pad = target_size(max(1, w * h))
+        monitor_scale = scale_by_id.get(c.get("monitor"), 1.0)
+        font, pad = target_size(max(1, w * h), monitor_scale)
         if applied.get(pid) != (font, pad):
             push(pid, font, pad)
             applied[pid] = (font, pad)

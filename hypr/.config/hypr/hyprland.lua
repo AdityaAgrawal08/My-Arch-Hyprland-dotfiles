@@ -26,9 +26,10 @@ hl.env("XCURSOR_SIZE", "21")
 hl.env("HYPRCURSOR_SIZE", "21")
 hl.env("QT_QPA_PLATFORMTHEME", "gtk3")
 
-hl.env("GDK_SCALE", "2")
-hl.env("QT_WAYLAND_FORCE_DPI", "192")
-hl.env("_JAVA_OPTIONS", "-Dsun.java2d.uiScale=2 -Dawt.useSystemAAFontSettings=on -Dswing.aatext=true")
+hl.env("ELECTRON_OZONE_PLATFORM_HINT", "auto")
+hl.env("GDK_BACKEND", "wayland")
+hl.env("QT_QPA_PLATFORM", "wayland")
+hl.env("MOZ_ENABLE_WAYLAND", "1")
 hl.env("ELECTRON_USE_WAYLAND", "1")
 hl.env("GDK_BACKEND", "wayland")
 hl.env("QT_QPA_PLATFORM", "wayland")
@@ -126,7 +127,7 @@ hl.config({
   },
 
   xwayland = {
-    force_zero_scaling = true,
+    force_zero_scaling = false,
   },
 })
 
@@ -193,9 +194,27 @@ hl.bind(mainMod .. " + SHIFT + V", hl.dsp.exec_cmd("cliphist list | wofi --dmenu
 hl.bind(mainMod .. " + M", hl.dsp.exit())
 hl.bind("SUPER + L", hl.dsp.exec_cmd("~/.config/hypr/scripts/power-menu.sh"))
 
+-- Global UI scale (whole monitor)
+hl.bind(mainMod .. " + SHIFT + equal",
+  hl.dsp.exec_cmd("~/.config/hypr/scripts/ui-scale.py up"),
+  { description = "Increase UI scale" })
+
+hl.bind(mainMod .. " + minus",
+  hl.dsp.exec_cmd("~/.config/hypr/scripts/ui-scale.py down"),
+  { description = "Decrease UI scale" })
+
 -- Window actions
 hl.bind(mainMod .. " + F", hl.dsp.window.float({ action = "toggle" }))
 hl.bind(mainMod .. " + P", hl.dsp.window.pseudo())
+
+-- Global UI scale (whole monitor)
+hl.bind(mainMod .. " + SHIFT + equal",
+  hl.dsp.exec_cmd("~/.config/hypr/scripts/ui-scale.py up"),
+  { description = "Increase UI scale" })
+
+hl.bind(mainMod .. " + minus",
+  hl.dsp.exec_cmd("~/.config/hypr/scripts/ui-scale.py down"),
+  { description = "Decrease UI scale" })
 
 -- Layout
 hl.bind(mainMod .. " + J", hl.dsp.layout("togglesplit"))
