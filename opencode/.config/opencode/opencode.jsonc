@@ -74,6 +74,7 @@
   },
   "lsp": true,
   "experimental": {
-    "todo": true
+    "todo": true,
+    "background_compaction": true
   }
 }
