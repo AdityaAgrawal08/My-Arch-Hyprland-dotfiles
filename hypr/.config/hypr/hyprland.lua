@@ -194,27 +194,28 @@ hl.bind(mainMod .. " + SHIFT + V", hl.dsp.exec_cmd("cliphist list | wofi --dmenu
 hl.bind(mainMod .. " + M", hl.dsp.exit())
 hl.bind("SUPER + L", hl.dsp.exec_cmd("~/.config/hypr/scripts/power-menu.sh"))
 
+
 -- Global UI scale (whole monitor)
-hl.bind(mainMod .. " + SHIFT + equal",
+-- On a US layout, "+" is Shift+=, so bind both = and Shift+=.
+hl.bind(mainMod .. " + equal",
   hl.dsp.exec_cmd("~/.config/hypr/scripts/ui-scale.py up"),
   { description = "Increase UI scale" })
+
+hl.bind(mainMod .. " + SHIFT + equal",
+  hl.dsp.exec_cmd("~/.config/hypr/scripts/ui-scale.py up"),
+  { description = "Increase UI scale (Shift+=)" })
 
 hl.bind(mainMod .. " + minus",
   hl.dsp.exec_cmd("~/.config/hypr/scripts/ui-scale.py down"),
   { description = "Decrease UI scale" })
+
+hl.bind(mainMod .. " + SHIFT + minus",
+  hl.dsp.exec_cmd("~/.config/hypr/scripts/ui-scale.py down"),
+  { description = "Decrease UI scale (Shift+-)" })
 
 -- Window actions
 hl.bind(mainMod .. " + F", hl.dsp.window.float({ action = "toggle" }))
 hl.bind(mainMod .. " + P", hl.dsp.window.pseudo())
-
--- Global UI scale (whole monitor)
-hl.bind(mainMod .. " + SHIFT + equal",
-  hl.dsp.exec_cmd("~/.config/hypr/scripts/ui-scale.py up"),
-  { description = "Increase UI scale" })
-
-hl.bind(mainMod .. " + minus",
-  hl.dsp.exec_cmd("~/.config/hypr/scripts/ui-scale.py down"),
-  { description = "Decrease UI scale" })
 
 -- Layout
 hl.bind(mainMod .. " + J", hl.dsp.layout("togglesplit"))

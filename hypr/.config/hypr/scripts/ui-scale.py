@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+import time
 
 # Candidate scales. Values that do not produce whole logical pixels
 # for the current monitor mode are filtered out below.
@@ -74,18 +75,33 @@ def main() -> int:
     mode = f"{width}x{height}@{refresh:g}"
     position = f"{monitor['x']}x{monitor['y']}"
 
+    lua = 'hl.monitor({ output = "%s", mode = "%s", position = "%s", scale = %s })' % (
+        monitor["name"], mode, position, f"{new_scale:g}"
+    )
+
     try:
         subprocess.run(
-            [
-                "hyprctl", "keyword", "monitor",
-                f"{monitor['name']},{mode},{position},{new_scale:g}",
-            ],
+            ["hyprctl", "eval", lua],
             check=True,
             capture_output=True,
             text=True,
         )
     except subprocess.CalledProcessError as exc:
         notify("UI scale", (exc.stderr or "Failed to apply scale").strip())
+        return 1
+
+    # hyprctl can exit 0 without applying the change, so verify it.
+    applied = False
+    for _ in range(10):
+        after = hyprctl_json("monitors")
+        actual = next((m for m in after if m.get("name") == monitor["name"]), None)
+        if actual and abs(float(actual.get("scale") or 0.0) - new_scale) < 1e-3:
+            applied = True
+            break
+        time.sleep(0.05)
+
+    if not applied:
+        notify("UI scale", "Hyprland did not apply the scale")
         return 1
 
     logical = f"{round(width / new_scale)}×{round(height / new_scale)}"
