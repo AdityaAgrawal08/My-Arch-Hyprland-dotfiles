@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import time
@@ -104,10 +105,15 @@ def main() -> int:
         notify("UI scale", "Hyprland did not apply the scale")
         return 1
 
+    waybar_scale = os.path.expanduser("~/.config/hypr/scripts/waybar-scale.py")
+    try:
+        subprocess.run([waybar_scale, "apply"], check=False)
+    except OSError:
+        pass
+
     logical = f"{round(width / new_scale)}×{round(height / new_scale)}"
     notify("UI scale", f"{new_scale:g}× ({logical} logical)")
     return 0
-
 
 if __name__ == "__main__":
     raise SystemExit(main())
