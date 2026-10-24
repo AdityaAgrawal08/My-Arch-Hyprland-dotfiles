@@ -13,6 +13,9 @@ logs/
 state/
 .cache/
 
+# Autotheme thumbnail cache
+hypr/.config/hypr/themes/wallpapers/thumbs/
+
 # ---------------------------
 # Python (pdfmerge etc.)
 # ---------------------------

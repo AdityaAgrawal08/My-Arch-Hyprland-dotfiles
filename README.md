@@ -66,6 +66,58 @@ Our dotfiles utilize an intelligent, profile-based provisioning system. Rather t
 *   **Hyprlock & Hypridle:** Integrated screen locking and power-saving daemons that react immediately to session idle notifications, keeping power consumption minimal.
 *   **Waybar:** A top-screen glassmorphic status bar displaying current workspace indicators, resources (CPU, Memory, Disk), dynamic audio volume level, time-date displays, and bluetooth adapter properties via custom background scripts ([waybar/.config/waybar/bluetooth.sh](file:///home/aditya/dotfiles/waybar/.config/waybar/bluetooth.sh)).
 *   **Wofi Launcher:** A high-speed application launcher custom-styled with subtle hover highlights, blurred backdrops, and modern list selections.
+*   **Autotheme:** `Super + T` opens a Wofi wallpaper picker. Selecting an image regenerates one Material You dark palette from it and renders every themed surface: Waybar, Wofi, Kitty, Dunst, GTK 3/4, Hyprlock and the live Hyprland border colours. See [Autotheme & Wallpapers](#-autotheme--wallpapers) below.
+
+### 🎨 Autotheme & Wallpapers
+
+Wallpapers live in `hypr/.config/hypr/themes/wallpapers/assets/`. Drop a
+`.jpg`, `.jpeg`, `.png`, `.webp` or `.gif` in there; it appears in the picker on
+the next open. The generated files are outside the repository, under
+`~/.cache/autotheme/` and the Dunst drop-in directory, so Stow never conflicts
+with them.
+
+For the full engine install `matugen`, `awww` and `python-pillow` (all in the
+official `extra` repository; `install.sh` includes them):
+
+```bash
+sudo pacman -S --needed matugen awww python-pillow
+```
+
+Without `matugen` the scripts still work using the static dark fallback, and
+without `awww` they fall back to `hyprpaper` (static images only).
+
+The pipeline is:
+
+1. `awww` paints the wallpaper with a random wave/wipe transition. Animated
+   GIFs play normally. `hyprpaper` remains a fallback if `awww` is unavailable.
+2. `lib/vibrant.py` extracts the wallpaper's most vivid hues, a per-hue ANSI
+   palette and a grayscale flag.
+3. `matugen` generates the dark Material You surfaces from the image. Your own
+   `~/.config/matugen/config.toml` is never touched.
+4. `lib/build_theme.py` merges the two, checks contrast and writes
+   `~/.cache/autotheme/theme.json`.
+5. `lib/render.py` renders Kitty, Waybar, Wofi, Dunst, GTK and Hyprlock
+   templates. The live surfaces are reloaded without restarting Wayland.
+
+Kitty has two generated variants: opaque uses a pure black background, while
+transparent uses a wallpaper-derived tint. `terminal opaque|transparent|toggle`
+switches between them and both variants are refreshed whenever the wallpaper
+changes, so transparency stays live.
+
+Useful commands:
+
+```bash
+~/.config/hypr/scripts/wallpaper_switch.sh apply ~/Pictures/wall.png
+~/.config/hypr/scripts/wallpaper_switch.sh restore
+~/.config/hypr/scripts/wallpaper_switch.sh regenerate
+~/.config/hypr/scripts/wallpaper_switch.sh list-json | jq '.[].name'
+~/.config/hypr/scripts/wallpaper_switch.sh doctor
+```
+
+If `matugen` is missing or fails, a static dark palette is rendered from the
+same templates. Grayscale wallpapers get a neutral monochrome theme instead of
+matugen's blue fallback. Nvim keeps its gruvbox colours; Fish, Starship and
+Kitty syntax colours follow the generated ANSI palette.
 
 ### 🐚 Terminal & Editors
 *   **Fish Shell**: Modern, interactive shell equipped with live syntax highlighting, autosuggestions based on command history, and custom functional wrappers.

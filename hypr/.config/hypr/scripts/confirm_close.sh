@@ -116,7 +116,7 @@ CHOICE=$(printf "NO\nYES" | wofi --dmenu \
     -D use_search_box=false \
     -D content_halign=center \
     -D single_click=true \
-    -s ~/.config/wofi/confirm.css)
+    -s "$HOME/.cache/autotheme/wofi-confirm.css")
 
 # If choice is yes, close the window by its address
 if [ "$CHOICE" = "YES" ]; then

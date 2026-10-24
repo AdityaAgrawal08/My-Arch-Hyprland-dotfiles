@@ -1,10 +1,14 @@
+/* Generated palette */
+@import url("file:///home/aditya/.cache/autotheme/gtk.css");
+
 /* Color Definitions */
-@define-color bg_color #2b3339;
-@define-color surface_color #323c41;
-@define-color border_color #3d484d;
-@define-color fg_color #d3c6aa;
-@define-color selected_bg_color #475258;
-@define-color accent_color #a7c080;
+/* bg_color, surface_color, border_color, fg_color, selected_bg_color,
+   accent_color and accent_fg_color are defined by the import above. */
+
+selection {
+    background-color: @accent_color;
+    color: @accent_fg_color;
+}
 
 /* Base Window, Menu and Popover styling */
 window, 
@@ -46,6 +50,6 @@ check, radio {
 
 check:checked, radio:checked {
     background-color: @accent_color;
-    color: @bg_color;
+    color: @accent_fg_color;
     border: 1px solid @accent_color;
 }

@@ -54,4 +54,13 @@ function terminal --description "Fade kitty background opacity and sync nvim"
     # Remember the preference for terminals opened later
     mkdir -p "$HOME/.local/state"
     echo $target > "$HOME/.local/state/kitty-opacity"
+
+    # Switch the generated Kitty background variant (black vs wallpaper tint).
+    set -l mode opaque
+    test $target -lt 0.6; and set mode transparent
+    set -l args kitty-mode $mode
+    if test -n "$KITTY_PID"
+        set args kitty-mode --pid $KITTY_PID $mode
+    end
+    ~/.config/hypr/scripts/wallpaper_switch.sh $args >/dev/null 2>&1
 end

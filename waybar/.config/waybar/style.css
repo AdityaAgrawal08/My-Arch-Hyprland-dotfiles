@@ -1,12 +1,17 @@
+/*
+ * Colours come from ~/.cache/autotheme/waybar.css.  This file is scaled by
+ * ~/.config/hypr/scripts/waybar-scale.py, which also prepends the palette.
+ */
+
 * {
   font-family: "Adwaita Sans", "Noto Sans", sans-serif;
   font-size: 11px;
-  color: #d3c6aa;
+  color: @fg;
 }
 
 window#waybar {
-  background: #161616;
-  border-bottom: 1px solid #292929;
+  background: @bg;
+  border-bottom: 1px solid @border;
 }
 
 /* All modules */
@@ -20,8 +25,8 @@ window#waybar {
 #language,
 #mpd,
 #tray {
-  background: #1d1d1d;
-  border: 1px solid #292929;
+  background: @surface;
+  border: 1px solid @border;
   border-radius: 8px;
   padding: 2px 12px;
   margin: 4px 4px;
@@ -37,25 +42,25 @@ window#waybar {
   padding: 2px 8px;
   margin: 0 2px;
   border-radius: 6px;
-  color: #858585;
+  color: @muted;
   background: transparent;
   border: none;
   font-weight: bold;
 }
 
 #workspaces button:hover {
-  color: #d3c6aa;
-  background: #252525;
+  color: @fg;
+  background: @hover;
 }
 
 #workspaces button.active {
-  color: #d3c6aa;
-  background: #292929;
+  color: @on_accent;
+  background: @accent;
 }
 
 #workspaces button.urgent {
-  color: #161616;
-  background: #e67e80;
+  color: @on_critical;
+  background: @critical;
 }
 
 /* Center */
@@ -84,8 +89,8 @@ window#waybar {
 #language:hover,
 #mpd:hover,
 #tray:hover {
-  background: #252525;
-  color: #eceef4;
+  background: @hover;
+  color: @bright;
 }
 
 /* Tray */

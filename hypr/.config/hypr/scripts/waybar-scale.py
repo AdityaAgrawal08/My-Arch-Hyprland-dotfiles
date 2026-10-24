@@ -11,9 +11,24 @@ import sys
 
 BASE_SCALE = 1.5
 SRC = os.path.expanduser("~/.config/waybar/style.css")
-OUT = os.path.expanduser(
-    os.path.join(os.environ.get("XDG_CACHE_HOME", "~/.cache"), "waybar", "style.css")
-)
+CACHE = os.path.expanduser(os.environ.get("XDG_CACHE_HOME", "~/.cache"))
+OUT = os.path.join(CACHE, "waybar", "style.css")
+THEME = os.path.join(CACHE, "autotheme", "waybar.css")
+FALLBACK_THEME = """\
+@define-color bg #161616;
+@define-color surface #1d1d1d;
+@define-color surface_high #252525;
+@define-color border #292929;
+@define-color fg #d3c6aa;
+@define-color muted #858585;
+@define-color hover #252525;
+@define-color accent #a7c080;
+@define-color accent_soft #e67e80;
+@define-color on_accent #161616;
+@define-color critical #e67e80;
+@define-color on_critical #161616;
+@define-color bright #eceef4;
+"""
 PX = re.compile(r"(\d+(?:\.\d+)?)px")
 
 
@@ -31,7 +46,14 @@ def generate() -> None:
     with open(SRC, encoding="utf-8") as f:
         css = f.read()
 
+    try:
+        with open(THEME, encoding="utf-8") as f:
+            theme = f.read()
+    except OSError:
+        theme = FALLBACK_THEME
+
     css = PX.sub(lambda m: f"{float(m.group(1)) * ratio:.2f}px", css)
+    css = theme.rstrip() + "\n\n" + css
 
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     with open(OUT, "w", encoding="utf-8") as f:

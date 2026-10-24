@@ -183,6 +183,9 @@ PACMAN_HYPR=(
   hyprshot
   hyprsunset
   hyprpolkitagent
+  matugen
+  awww
+  python-pillow
   waybar
   wofi
   kitty
@@ -1134,6 +1137,12 @@ main() {
     install_local_bin_tools
     install_trash_system
     configure_shells
+
+    if [[ -x "$HOME/.config/hypr/scripts/wallpaper_switch.sh" ]]; then
+      say "Seeding autotheme generated files"
+      "$HOME/.config/hypr/scripts/wallpaper_switch.sh" init || \
+        warn "Could not seed autotheme; run wallpaper_switch.sh init after first login"
+    fi
   fi
 
   install_python_tools
@@ -1160,11 +1169,12 @@ main() {
 
   local -a critical_cmds=(
     Hyprland hyprctl hyprpaper hypridle hyprlock hyprshot hyprsunset hyprpolkitagent
+    matugen awww awww-daemon
     waybar wofi kitty thunar dunst cliphist wl-copy
     nm-applet blueman-applet pavucontrol
     fish nvim git stow sqlite3
     notify-send playerctl brightnessctl wpctl grim slurp zathura imv mpv
-    starship jq python3 gcc pkg-config
+    starship jq python3 gcc pkg-config magick ffmpeg ffprobe
   )
   local cmd missing=()
 
@@ -1202,8 +1212,8 @@ main() {
   fi
   if [[ "$DOTFILES_DIR" != "/home/aditya/dotfiles" ]]; then
     warn "Some checked-in configs contain /home/aditya paths (hyprpaper.conf,"
-    warn "hyprland.lua, power-menu.sh).  If your username differs, update those"
-    warn "paths after the first login."
+    warn "hyprland.lua, power-menu.sh, autotheme includes).  If your username"
+    warn "differs, update those paths after the first login."
   fi
 
   if ((${#FAILED_ITEMS[@]})); then

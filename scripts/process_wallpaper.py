@@ -4,7 +4,9 @@ from PIL import Image, ImageEnhance
 
 def process_wallpaper():
     input_path = "/home/aditya/.gemini/antigravity/brain/91fa5726-b486-43c6-b6ae-1ac27fdfd7a0/wider_cave_wallpaper_1783067501951.jpg"
-    output_path = os.path.expanduser("~/dotfiles/wallpaper.png")
+    output_path = os.path.expanduser(
+        "~/dotfiles/hypr/.config/hypr/themes/wallpapers/assets/wallpaper.png"
+    )
     
     if not os.path.exists(input_path):
         print(f"Error: Generated image {input_path} not found.")
