@@ -70,10 +70,10 @@ hl.config({
     gaps_out                = 1,
     border_size             = 1,
 
-    -- Focused window gets a blue outer edge; inactive stays near-black so
-    -- focus is obvious at a glance.
-    ["col.active_border"]   = "rgba(4b9fe8ff)",
-    ["col.inactive_border"] = "rgba(010101ff)",
+    -- Neutral fallback borders. The autotheme pipeline replaces these with
+    -- wallpaper-derived colors at startup and after a config reload.
+    ["col.active_border"]   = "rgba(8a8a8aff)",
+    ["col.inactive_border"] = "rgba(242424ff)",
     resize_on_border        = true,
     allow_tearing           = false,
     layout                  = "dwindle",

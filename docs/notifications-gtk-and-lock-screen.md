@@ -79,7 +79,7 @@ Key global settings:
     padding = 8
     horizontal_padding = 8
     frame_width = 1
-    frame_color = "#3d484d"
+    frame_color = "#3a3a3a"
     gap_size = 0
     separator_color = frame
     sort = yes
@@ -104,9 +104,9 @@ Base urgency colors:
 
 | Section | Background | Foreground | Frame | Timeout |
 | --- | --- | --- | --- | --- |
-| `urgency_low` | `#2b3339` | `#859289` | `#3d484d` | 10 |
-| `urgency_normal` | `#2b3339` | `#d3c6aa` | `#a7c080` | 10 |
-| `urgency_critical` | `#2b3339` | `#d3c6aa` | `#e67e80` | 0 |
+| `urgency_low` | `#101010` | `#9a9a9a` | `#3a3a3a` | 10 |
+| `urgency_normal` | `#101010` | `#e6e6e6` | `#d0d0d0` | 10 |
+| `urgency_critical` | `#101010` | `#e6e6e6` | `#ff6b6b` | 0 |
 
 There is a `[battery-notify]` rule:
 

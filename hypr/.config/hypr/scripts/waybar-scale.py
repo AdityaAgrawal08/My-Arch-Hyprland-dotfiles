@@ -15,19 +15,19 @@ CACHE = os.path.expanduser(os.environ.get("XDG_CACHE_HOME", "~/.cache"))
 OUT = os.path.join(CACHE, "waybar", "style.css")
 THEME = os.path.join(CACHE, "autotheme", "waybar.css")
 FALLBACK_THEME = """\
-@define-color bg #161616;
-@define-color surface #1d1d1d;
-@define-color surface_high #252525;
-@define-color border #292929;
-@define-color fg #d3c6aa;
-@define-color muted #858585;
-@define-color hover #252525;
-@define-color accent #a7c080;
-@define-color accent_soft #e67e80;
-@define-color on_accent #161616;
-@define-color critical #e67e80;
-@define-color on_critical #161616;
-@define-color bright #eceef4;
+@define-color bg #101010;
+@define-color surface #1a1a1a;
+@define-color surface_high #242424;
+@define-color border #3a3a3a;
+@define-color fg #e6e6e6;
+@define-color muted #9a9a9a;
+@define-color hover #242424;
+@define-color accent #d0d0d0;
+@define-color accent_soft #a8a8a8;
+@define-color on_accent #111111;
+@define-color critical #ff6b6b;
+@define-color on_critical #111111;
+@define-color bright #ffffff;
 """
 PX = re.compile(r"(\d+(?:\.\d+)?)px")
 

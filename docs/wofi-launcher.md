@@ -62,7 +62,7 @@ Behavior:
 
 ## Generated versus static styles
 
-The tracked `wofi/style.css` and `wofi/confirm.css` are Everforest fallbacks.
+The tracked `wofi/style.css` and `wofi/confirm.css` are neutral-dark fallbacks.
 They are not loaded while the generated files exist.
 
 - Main Wofi loads `~/.cache/autotheme/wofi.css`.

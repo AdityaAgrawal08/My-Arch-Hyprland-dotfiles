@@ -7,6 +7,7 @@ THEME_JSON="$CACHE_DIR/theme.json"
 THEME_COMPAT="$CACHE_ROOT/autotheme.json"
 STATE_FILE="$CACHE_DIR/wallpaper"
 ACCENTS_JSON="$CACHE_DIR/accents.json"
+SEED_PNG="$CACHE_DIR/seed.png"
 ROLES_JSON="$CACHE_DIR/matugen-roles.json"
 LOG_FILE="$CACHE_DIR/last.log"
 LOCK_FILE="$CACHE_DIR/lock"
@@ -17,6 +18,10 @@ KITTY_ACTIVE="$CACHE_DIR/kitty.conf"
 SAMPLES_DIR="$CACHE_DIR/samples"
 DUNST_DROPIN="${XDG_CONFIG_HOME:-$HOME/.config}/dunst/dunstrc.d/autotheme.conf"
 RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+
+# Must match scene.VERSION.  Bump both when the strategy changes so cached
+# themes are rebuilt instead of silently keeping an old policy.
+SCENE_VERSION=1
 
 WALLPAPER_DIR="$(realpath -m -- "${WALLPAPER_DIR:-$SCRIPT_DIR/../themes/wallpapers/assets}")"
 THUMBS_DIR="$(realpath -m -- "${THUMBS_DIR:-$SCRIPT_DIR/../themes/wallpapers/thumbs}")"
@@ -383,25 +388,63 @@ paint_wallpaper() {
 }
 
 theme_is_current() {
-    local file="$1" mtime
+    local file="$1" mtime scene_mode
     [[ -f "$THEME_JSON" ]] || return 1
     mtime="$(stat_mtime "$file")"
     jq -e --arg file "$file" --argjson mtime "$mtime" \
-        '.wallpaper == $file and .mtime == $mtime' "$THEME_JSON" >/dev/null 2>&1
+        '.wallpaper == $file and .mtime == $mtime' "$THEME_JSON" >/dev/null 2>&1 || return 1
+    scene_mode="${AUTOTHEME_SCENE:-auto}"
+    if [[ "$scene_mode" != off ]]; then
+        jq -e --argjson version "$SCENE_VERSION" \
+            '.scene.version == $version' "$THEME_JSON" >/dev/null 2>&1 || return 1
+    fi
+    return 0
 }
 
 generate_theme() {
     local file="$1" sample="$2" mtime grayscale=false built=0 fallback mode
+    local scene_mode="${AUTOTHEME_SCENE:-auto}"
+    local matugen_source scheme contrast lightness seed matugen_ok=0
     mtime="$(stat_mtime "$file")"
-    rm -f "$ROLES_JSON"
+    rm -f "$ROLES_JSON" "$SEED_PNG"
 
-    if ! python3 "$SCRIPT_DIR/lib/vibrant.py" "$sample" -o "$ACCENTS_JSON" >>"$LOG_FILE" 2>&1; then
+    local -a vibrant_args=("$sample" -o "$ACCENTS_JSON")
+    if [[ "$scene_mode" == off ]]; then
+        vibrant_args+=(--scene off)
+    else
+        vibrant_args+=(--scene "$scene_mode" --seed-out "$SEED_PNG")
+    fi
+    if ! python3 "$SCRIPT_DIR/lib/vibrant.py" "${vibrant_args[@]}" >>"$LOG_FILE" 2>&1; then
         warn "vibrant.py failed; using the default accent palette"
         printf '{}\n' >"$ACCENTS_JSON"
     fi
     if command -v jq >/dev/null 2>&1 && [[ -s "$ACCENTS_JSON" ]]; then
         grayscale="$(jq -r '.grayscale // false' "$ACCENTS_JSON" 2>/dev/null || echo false)"
     fi
+
+    matugen_source="$sample"
+    scheme="scheme-tonal-spot"
+    contrast="0"
+    lightness="0"
+    if [[ "$scene_mode" != off ]] && [[ -s "$ACCENTS_JSON" ]] \
+        && command -v jq >/dev/null 2>&1; then
+        seed="$(jq -r '.seed // empty' "$ACCENTS_JSON" 2>/dev/null || true)"
+        scheme="$(jq -r '.scene.strategy.scheme // "scheme-tonal-spot"' "$ACCENTS_JSON" 2>/dev/null || echo scheme-tonal-spot)"
+        contrast="$(jq -r '.scene.strategy.contrast // 0' "$ACCENTS_JSON" 2>/dev/null || echo 0)"
+        lightness="$(jq -r '.scene.strategy.lightnessDark // 0' "$ACCENTS_JSON" 2>/dev/null || echo 0)"
+        if [[ -n "$seed" && -s "$SEED_PNG" ]]; then
+            matugen_source="$SEED_PNG"
+        fi
+    fi
+    case "$scheme" in
+        scheme-content|scheme-expressive|scheme-fidelity|scheme-fruit-salad|\
+        scheme-monochrome|scheme-neutral|scheme-rainbow|scheme-tonal-spot|\
+        scheme-vibrant|scheme-smart)
+            ;;
+        *)
+            scheme="scheme-tonal-spot"
+            ;;
+    esac
 
     if [[ "${AUTOTHEME_MATUGEN:-auto}" != never ]] \
         && command -v matugen >/dev/null 2>&1 \
@@ -414,10 +457,34 @@ version_check = false
 input_path = "$SCRIPT_DIR/templates/matugen-roles.json"
 output_path = "$ROLES_JSON"
 EOF
-        if matugen image "$sample" -m dark -t scheme-tonal-spot \
-            --source-color-index 0 -c "$CACHE_DIR/matugen.toml" -q >>"$LOG_FILE" 2>&1 \
+        local -a matugen_args=(
+            image "$matugen_source" -m dark -t "$scheme"
+            --source-color-index 0 -c "$CACHE_DIR/matugen.toml" -q
+        )
+        if awk -v value="$contrast" 'BEGIN { exit !(value != 0) }'; then
+            matugen_args+=(--contrast "$contrast")
+        fi
+        if awk -v value="$lightness" 'BEGIN { exit !(value != 0) }'; then
+            matugen_args+=(--lightness-dark "$lightness")
+        fi
+
+        if matugen "${matugen_args[@]}" >>"$LOG_FILE" 2>&1 \
             && [[ -s "$ROLES_JSON" ]] \
             && jq -e . "$ROLES_JSON" >/dev/null 2>&1; then
+            matugen_ok=1
+        elif [[ "$matugen_source" != "$sample" ]]; then
+            warn "matugen rejected the scene seed; retrying with the wallpaper"
+            rm -f "$ROLES_JSON"
+            local -a retry_args=("${matugen_args[@]}")
+            retry_args[1]="$sample"
+            if matugen "${retry_args[@]}" >>"$LOG_FILE" 2>&1 \
+                && [[ -s "$ROLES_JSON" ]] \
+                && jq -e . "$ROLES_JSON" >/dev/null 2>&1; then
+                matugen_ok=1
+            fi
+        fi
+
+        if [[ "$matugen_ok" -eq 1 ]]; then
             if python3 "$SCRIPT_DIR/lib/build_theme.py" \
                 --wallpaper "$file" --mtime "$mtime" \
                 --roles "$ROLES_JSON" --accents "$ACCENTS_JSON" \
@@ -439,6 +506,11 @@ EOF
             warn "could not build a theme document"
             return 1
         fi
+    fi
+
+    if [[ "$built" -eq 1 && "$scene_mode" != off ]] \
+        && command -v jq >/dev/null 2>&1; then
+        log_line "scene scheme=$scheme tags=$(jq -r '(.scene.tags // []) | map(.name) | join(",")' "$ACCENTS_JSON" 2>/dev/null || true)"
     fi
 
     jq -e '.bg and .accent and .fg' "$THEME_JSON" >/dev/null 2>&1 || {
@@ -542,6 +614,7 @@ doctor() {
     printf '  backend       : %s\n' "$backend"
     printf '  theme.json    : %s\n' "$([[ -f "$THEME_JSON" ]] && echo present || echo missing)"
     printf '  wallpaper     : %s\n' "$(default_wallpaper || echo missing)"
+    printf '  scene mode    : %s\n' "${AUTOTHEME_SCENE:-auto}"
     for command in matugen awww awww-daemon hyprpaper hyprctl jq python3 kitten dunstctl waybar wofi magick ffmpeg; do
         if command -v "$command" >/dev/null 2>&1; then
             printf '  %-13s : %s\n' "$command" "$(command -v "$command")"
@@ -549,8 +622,18 @@ doctor() {
             printf '  %-13s : missing\n' "$command"
         fi
     done
+    if python3 -c 'import PIL' >/dev/null 2>&1; then
+        printf '  pillow        : ok\n'
+    else
+        printf '  pillow        : missing\n'
+    fi
     if [[ -f "$THEME_JSON" ]] && command -v jq >/dev/null 2>&1; then
         printf '  accent        : %s\n' "$(jq -r '.accent' "$THEME_JSON" 2>/dev/null || echo '?')"
         printf '  background    : %s\n' "$(jq -r '.bg' "$THEME_JSON" 2>/dev/null || echo '?')"
+    fi
+    if [[ -s "$ACCENTS_JSON" ]] && command -v jq >/dev/null 2>&1; then
+        printf '  scene tags    : %s\n' "$(jq -r '(.scene.tags // []) | map(.name) | join(",")' "$ACCENTS_JSON" 2>/dev/null || true)"
+        printf '  scene scheme  : %s\n' "$(jq -r '.scene.strategy.scheme // "?"' "$ACCENTS_JSON" 2>/dev/null || echo '?')"
+        printf '  scene seed    : %s\n' "$(jq -r '.seed // "?"' "$ACCENTS_JSON" 2>/dev/null || echo '?')"
     fi
 }

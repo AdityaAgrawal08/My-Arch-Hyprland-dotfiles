@@ -76,25 +76,11 @@ background_opacity 1.0
 dynamic_background_opacity yes
 allow_remote_control yes
 listen_on unix:${XDG_RUNTIME_DIR}/kitty
-foreground            #d3c6aa
-cursor                #a7c080
-cursor_text_color     #2b3339
-selection_foreground  #d3c6aa
-selection_background  #3d484d
 ```
 
-Everforest ANSI palette:
-
-| Slot | Color |
-| --- | --- |
-| black / bright black | `#4b565c` |
-| red / bright red | `#e67e80` |
-| green / bright green | `#a7c080` |
-| yellow / bright yellow | `#dbbc7f` |
-| blue / bright blue | `#7fbbb3` |
-| magenta / bright magenta | `#d699b6` |
-| cyan / bright cyan | `#83c092` |
-| white / bright white | `#d3c6aa` |
+All foreground, ANSI, cursor, selection, and tab colors come from the generated
+autotheme include. The static file only defines layout, the opaque background,
+opacity behavior, and remote control.
 
 Additional settings:
 
@@ -103,10 +89,6 @@ map ctrl+a launch --type=clipboard --stdin-source=@screen_scrollback
 
 tab_bar_edge            top
 tab_bar_background      #000000
-active_tab_background   yellow
-active_tab_foreground   black
-inactive_tab_background #000000
-inactive_tab_foreground #d3c6aa
 
 include /home/aditya/.cache/autotheme/kitty.conf
 ```
@@ -247,16 +229,18 @@ Full daemon behavior is in
 
 ### Neovim transparency integration
 
-`nvim/.config/nvim/lua/plugins/ui.lua` reads:
+`nvim/.config/nvim/lua/core/autotheme.lua` reads:
 
 ```text
 $XDG_RUNTIME_DIR/kitty-mode-$KITTY_PID
+~/.cache/autotheme/theme.json
 ```
 
-- `transparent` → Gruvbox `transparent_mode = true`.
-- `opaque` → solid Gruvbox.
-- Missing file → creates it with `transparent`.
-- Watches the file with `uv.new_fs_event()` and reapplies the colorscheme.
+- `transparent` → generated palette with a transparent `Normal` background.
+- `opaque` → generated palette with a solid background.
+- Missing mode file → transparent.
+- Polls both files every two seconds and reapplies highlight groups when either
+  changes.
 
 ## Fish
 

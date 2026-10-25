@@ -9,5 +9,8 @@ require("core.autoimport").setup({
 })
 require("core.autocmds")
 
+-- Wallpaper-derived colorscheme
+require("core.autotheme").setup()
+
 -- Plugins (lazy.nvim + specs)
 require("plugins.init")

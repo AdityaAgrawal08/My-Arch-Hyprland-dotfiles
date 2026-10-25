@@ -181,7 +181,12 @@ add them to the ignored `fish/.config/fish/conf.d/secrets.fish`.
    ```
 9. Ensure `hyprland.lua` has the `SUPER+T` bind, `restore` autostart, and
    `config.reloaded` border hook.
-10. Apply:
+10. Run the scene regression tests:
+    ```bash
+    python3 -m unittest discover \
+      -s tests -p 'test_*.py' -v
+    ```
+11. Apply:
     ```bash
     ~/.config/hypr/scripts/wallpaper_switch.sh apply <wallpaper-file>
     ```
@@ -232,6 +237,9 @@ Expected:
 ```bash
 ~/.config/hypr/scripts/wallpaper_switch.sh doctor
 jq . ~/.cache/autotheme/theme.json
+jq '{seed, scene}' ~/.cache/autotheme/accents.json
+~/.config/hypr/scripts/wallpaper_switch.sh scene
+~/.config/hypr/scripts/wallpaper_switch.sh explain
 readlink ~/.cache/autotheme/kitty.conf
 awww query
 ```
@@ -239,9 +247,25 @@ awww query
 Expected:
 
 - Backend reported.
-- Theme contains `bg`, `accent`, `fg`.
+- Theme contains `bg`, `accent`, `fg`, and `scene.version`.
+- `accents.json` contains a seed and the scene metrics/tags/strategy.
+- `scene` prints valid JSON; `explain` prints seed, scheme, contrast, and
+  lightness.
 - Active Kitty variant exists.
 - Current wallpaper path reported.
+
+Scene regression:
+
+```bash
+AUTOTHEME_SCENE=off AUTOTHEME_FORCE=1 \
+  ~/.config/hypr/scripts/wallpaper_switch.sh regenerate
+jq '{scene, seed}' ~/.cache/autotheme/theme.json
+~/.config/hypr/scripts/wallpaper_switch.sh regenerate
+```
+
+Expected: the off run has no scene/seed and uses the original Matugen
+invocation; the second run restores the scene theme. The scene layer adds
+roughly 20–40 ms of CPU and no measurable peak RSS on the reference wallpaper.
 
 Switch test:
 
@@ -275,7 +299,7 @@ AUTOTHEME_MATUGEN=never AUTOTHEME_FORCE=1 \
 jq '.bg' ~/.cache/autotheme/theme.json
 ```
 
-Expected: `#141218` fallback surface and a complete theme.
+Expected: `#121212` fallback surface and a complete theme.
 
 ### Kitty, Fish, Starship
 
@@ -297,7 +321,8 @@ Expected:
 - Opacity 0.2 / 1.0.
 - Background switches between tinted and black.
 - `~/.local/state/kitty-opacity` updates.
-- Neovim Gruvbox transparency follows the per-instance mode.
+- Neovim applies the generated palette and follows the per-instance
+  transparent/opaque mode.
 
 ### Waybar
 
@@ -372,10 +397,12 @@ Expected: `OK` and a table. If not initialized, see
 ```bash
 nvim --headless "+Lazy! sync" +qa
 nvim --headless "+checkhealth" +qa
+nvim --headless "+lua print(vim.g.colors_name, vim.inspect(vim.api.nvim_get_hl(0, { name = 'Normal' })))" +qa
 ```
 
-Expected: pinned plugins install; checkhealth reports missing external tools.
-Open a Markdown file and test `<leader>mt` and `<leader>mf`.
+Expected: pinned plugins install; `colors_name` is `autotheme`; `Normal` colors
+match `theme.json`; checkhealth reports missing external tools. Open a Markdown
+file and test `<leader>mt` and `<leader>mf`.
 
 ### OpenCode
 

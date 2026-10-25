@@ -133,8 +133,8 @@ hl.config({
     gaps_in = 1,
     gaps_out = 1,
     border_size = 1,
-    ["col.active_border"] = "rgba(4b9fe8ff)",
-    ["col.inactive_border"] = "rgba(010101ff)",
+    ["col.active_border"] = "rgba(8a8a8aff)",
+    ["col.inactive_border"] = "rgba(242424ff)",
     resize_on_border = true,
     allow_tearing = false,
     layout = "dwindle",
@@ -178,8 +178,8 @@ hl.config({
 })
 ```
 
-The static border colors are fallbacks. The autotheme engine overwrites them at
-runtime.
+The static border colors are neutral fallbacks. The autotheme engine overwrites
+them at runtime with wallpaper-derived colors.
 
 ### Animation curves
 
@@ -361,7 +361,7 @@ wallpaper to every monitor by IPC.
 
 It contains:
 
-- Everforest border colors.
+- Static legacy border colors.
 - `exec-once = waybar` rather than the scaled launcher.
 - Old `bind` syntax.
 - Removed `system-dashboard` rules and a `SUPER+I` bind.

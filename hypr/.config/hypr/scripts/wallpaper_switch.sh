@@ -25,6 +25,8 @@ usage: wallpaper_switch.sh <command> [args]
   kitty-mode [--pid PID] MODE Switch Kitty between opaque|transparent|auto
   list-json                   List supported wallpapers as JSON
   ensure-thumbs               Generate missing wallpaper thumbnails
+  scene                       Print the last scene analysis as JSON
+  explain                     Print a human-readable scene summary
   init                        Seed generated files without touching the session
   doctor                      Print dependency and state diagnostics
 EOF
@@ -204,6 +206,37 @@ cmd_ensure_thumbs() {
     ensure_thumbs
 }
 
+cmd_scene() {
+    cache_init
+    [[ -s "$ACCENTS_JSON" ]] || die "no scene data; run wallpaper_switch.sh regenerate"
+    command -v jq >/dev/null 2>&1 || die "jq is required to read scene data"
+    jq -e '.scene' "$ACCENTS_JSON" >/dev/null 2>&1 \
+        || die "no scene data; run wallpaper_switch.sh regenerate"
+    jq '.scene' "$ACCENTS_JSON"
+}
+
+cmd_explain() {
+    local wallpaper
+    cache_init
+    [[ -s "$ACCENTS_JSON" ]] || die "no scene data; run wallpaper_switch.sh regenerate"
+    command -v jq >/dev/null 2>&1 || die "jq is required to read scene data"
+    jq -e '.scene' "$ACCENTS_JSON" >/dev/null 2>&1 \
+        || die "no scene data; run wallpaper_switch.sh regenerate"
+    wallpaper="$(jq -r '.wallpaper // "unknown"' "$THEME_JSON" 2>/dev/null || echo unknown)"
+    jq -r --arg wallpaper "$wallpaper" '
+        "wallpaper : \($wallpaper)",
+        "scene     : \((.scene.tags // []) | map("\(.name) \(.confidence)") | join(", "))",
+        "confidence: \(.scene.confidence // 0)",
+        "seed      : \(.seed // "none")",
+        "scheme    : \(.scene.strategy.scheme // "?")",
+        "contrast  : \(.scene.strategy.contrast // 0)",
+        "lightness : \(.scene.strategy.lightnessDark // 0)",
+        "luma      : \(.scene.metrics.lumaMedian // 0)",
+        "saturation: \(.scene.metrics.satP90 // 0)",
+        "edges     : \(.scene.metrics.edgeDensity // 0)"
+    ' "$ACCENTS_JSON"
+}
+
 cmd_doctor() {
     cache_init
     doctor
@@ -237,6 +270,12 @@ main() {
             ;;
         ensure-thumbs)
             cmd_ensure_thumbs
+            ;;
+        scene)
+            cmd_scene
+            ;;
+        explain)
+            cmd_explain
             ;;
         init)
             cmd_init

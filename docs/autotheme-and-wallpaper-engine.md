@@ -1,8 +1,9 @@
 # Autotheme and Wallpaper Engine
 
-**Status:** Verified on the reference deployment for image and GIF switching,
-palette generation, fallbacks, Kitty modes, Waybar/Wofi/GTK/Dunst reloads, and
-Hyprland border updates. Hyprlock’s visual override was not exercised.
+**Status:** Verified for image and GIF switching, scene-aware strategy
+selection, palette generation, fallbacks, Kitty modes,
+Waybar/Wofi/GTK/Dunst reloads, Hyprland border updates, and Neovim colorscheme
+application. Hyprlock’s visual override was not exercised.
 
 ## Purpose
 
@@ -13,12 +14,19 @@ supported surface from it:
 - Waybar
 - Wofi
 - Kitty
+- Neovim
 - Dunst
 - GTK 3/4
 - Hyprlock
 - Hyprland window borders
 
-The engine deliberately targets this machine’s stack. It does not implement
+No fixed theme set is used. Every switch derives surfaces, accents, terminal
+colors, and editor highlights from the selected wallpaper. A Pillow-only scene
+analyser weights the colour clusters by visual attention and region, chooses a
+scheme type and mood adjustments, and gives Matugen a scene-selected seed
+colour. There is no semantic model and no fixed palette list.
+
+The engine deliberately targets this machine’s stack; it does not implement
 Quickshell, Ghostty, Limine, SDDM Maya, GRUB, or video wallpapers.
 
 ## Scope
@@ -27,6 +35,7 @@ In scope:
 
 - Wallpaper backends `awww` and `hyprpaper`.
 - Static images and animated GIFs.
+- Pillow-only scene heuristics: attention map, region priors, tags, strategy.
 - Palette extraction, Matugen integration, fallback palettes.
 - Theme rendering, live reloads, picker, thumbnails, state.
 - Kitty opaque/transparent variants.
@@ -34,6 +43,7 @@ In scope:
 
 Out of scope:
 
+- Semantic segmentation, object masks, or vision-language models.
 - Video wallpapers (`mpvpaper`).
 - SDDM/GRUB theming.
 - Quickshell or Ghostty integration.
@@ -47,10 +57,15 @@ wallpaper file
    │
    ├─ awww / hyprpaper paints wallpaper
    ├─ GIF middle-frame extraction (ffmpeg)
+   ├─ scene.py (Pillow)
+   │    ├─ 64x64 attention map
+   │    ├─ tone/colour/structure metrics
+   │    └─ tags + palette strategy
    ├─ vibrant.py
-   │    ├─ accents.json
-   │    └─ grayscale flag
-   ├─ matugen (dark, tonal-spot)
+   │    ├─ attention- and region-weighted clusters
+   │    ├─ accents.json (seed, accents, ANSI, scene)
+   │    └─ seed.png (64x64 solid seed)
+   ├─ matugen (dark, strategy scheme, seed or wallpaper)
    │    └─ matugen-roles.json
    ├─ build_theme.py
    │    └─ theme.json + autotheme.json
@@ -68,8 +83,9 @@ wallpaper file
         └─ Dunst reload
 ```
 
-The pipeline is one-shot. No daemon watches the wallpaper or the palette after
-the switch.
+The pipeline is one-shot. No daemon watches the wallpaper. Applications with
+live reload support are signaled; Neovim polls `theme.json` every two seconds
+and reapplies its highlight groups.
 
 ## Components and files
 
@@ -81,10 +97,12 @@ the switch.
 | `hypr/.config/hypr/scripts/wallpaper_switch.sh` | CLI and pipeline orchestration |
 | `hypr/.config/hypr/scripts/wallpaper_picker.sh` | Wofi thumbnail picker |
 | `hypr/.config/hypr/scripts/lib/autotheme.sh` | Backend, reload, thumbnail, JSON, state helpers |
-| `hypr/.config/hypr/scripts/lib/vibrant.py` | Accent and ANSI extraction |
-| `hypr/.config/hypr/scripts/lib/build_theme.py` | Theme construction and contrast enforcement |
+| `hypr/.config/hypr/scripts/lib/scene.py` | Pillow-only attention map, metrics, tags, strategy |
+| `hypr/.config/hypr/scripts/lib/vibrant.py` | Scene-weighted accent/seed/ANSI extraction |
+| `hypr/.config/hypr/scripts/lib/build_theme.py` | Theme construction, hue alignment, contrast enforcement |
 | `hypr/.config/hypr/scripts/lib/render.py` | Template renderer |
 | `hypr/.config/hypr/scripts/waybar-scale.py` | Waybar scaling and palette injection |
+| `tests/test_scene.py` | Scene regression tests |
 
 ### Templates
 
@@ -114,7 +132,8 @@ is not tracked.
 | --- | --- |
 | `~/.cache/autotheme/theme.json` | Canonical palette |
 | `~/.cache/autotheme.json` | Legacy copy |
-| `~/.cache/autotheme/accents.json` | Extracted accents and ANSI |
+| `~/.cache/autotheme/accents.json` | Extracted seed, accents, ANSI, scene document |
+| `~/.cache/autotheme/seed.png` | 64×64 solid seed for Matugen |
 | `~/.cache/autotheme/matugen-roles.json` | Raw M3 roles |
 | `~/.cache/autotheme/kitty-opaque.conf` | Opaque Kitty colors |
 | `~/.cache/autotheme/kitty-transparent.conf` | Transparent Kitty colors |
@@ -144,6 +163,7 @@ is not tracked.
 | `THUMBS_DIR` | `<scripts>/../themes/wallpapers/thumbs` | Thumbnail cache |
 | `WALLPAPER_TRANSITION` | `random` | `random`, `wave`, `wipe`, `none`, or another awww transition |
 | `AUTOTHEME_MATUGEN` | `auto` | `auto`, `always`, `never`; only `never` disables Matugen |
+| `AUTOTHEME_SCENE` | `auto` | `off`, `heuristic`, `auto`; `auto` resolves to heuristic |
 | `AUTOTHEME_DUNST` | `1` | Render and reload Dunst colors |
 | `AUTOTHEME_NOTIFY` | `0` | Send a notification after a switch |
 | `AUTOTHEME_VIDEO` | `0` | Reserved; unused |
@@ -164,6 +184,8 @@ wallpaper_switch.sh borders
 wallpaper_switch.sh kitty-mode [--pid PID] <opaque|transparent|auto>
 wallpaper_switch.sh list-json
 wallpaper_switch.sh ensure-thumbs
+wallpaper_switch.sh scene
+wallpaper_switch.sh explain
 wallpaper_switch.sh init
 wallpaper_switch.sh doctor
 ```
@@ -178,6 +200,8 @@ wallpaper_switch.sh doctor
 | `kitty-mode` | Switch Kitty color variant without changing opacity |
 | `list-json` | Emit supported assets as JSON |
 | `ensure-thumbs` | Generate missing thumbnails |
+| `scene` | Print the last scene document as JSON |
+| `explain` | Print a human-readable scene summary |
 | `init` | Create initial theme and generated files without touching the session |
 | `doctor` | Print paths, backend, theme state, and command availability |
 
@@ -234,18 +258,21 @@ Sampling:
   - `ffmpeg -ss <duration/2> -frames:v 1` writes
     `~/.cache/autotheme/samples/frame-<sha1>.png`.
   - If the midpoint yields no frame, retry at 0, then without `-ss`.
-- The sample is passed to `vibrant.py` and Matugen.
+- The sample is passed to `vibrant.py`. Matugen receives the scene seed in
+  scene mode, or the sample when scene mode is off or the seed is unavailable.
 
 ## Current-theme shortcut
 
-`theme_is_current(file)` checks only:
+`theme_is_current(file)` checks:
 
 - `theme.json.wallpaper == realpath(file)`
 - `theme.json.mtime == stat -c %Y file`
+- When `AUTOTHEME_SCENE` is not `off`: `theme.json.scene.version ==
+  SCENE_VERSION`
 
-If both match and `AUTOTHEME_FORCE != 1`, palette generation is skipped. The
+If they match and `AUTOTHEME_FORCE != 1`, palette generation is skipped. The
 wallpaper is still repainted and the generated surfaces are still re-rendered
-and reapplied.
+and reapplied. An in-place file edit that preserves mtime is not detected.
 
 ## Accent extraction
 
@@ -255,9 +282,11 @@ and reapplied.
 
 ```json
 {
+  "wallpaper": "/…/<wallpaper>.jpg",
   "grayscale": false,
-  "accent": "#d19b61",
-  "accent_soft": "#a7ce82",
+  "seed": "#cc7050",
+  "accent": "#d17e61",
+  "accent_soft": "#5c96c1",
   "on_accent": "#0c0c0c",
   "on_accent_soft": "#0c0c0c",
   "ansi": {
@@ -274,35 +303,74 @@ and reapplied.
     "magenta": "#c18bc1",
     "bright_magenta": "#d3acd3"
   },
+  "scene": {
+    "version": 1,
+    "confidence": 1.0,
+    "degraded": false,
+    "tags": [
+      { "name": "sky-water", "confidence": 1.0 },
+      { "name": "vivid", "confidence": 0.8 },
+      { "name": "low-key", "confidence": 0.55 }
+    ],
+    "metrics": { "lumaMedian": 0.2118, "satP90": 0.7193, "...": "..." },
+    "strategy": {
+      "scheme": "scheme-fidelity",
+      "contrast": 0.103,
+      "lightnessDark": -0.011,
+      "ansiSaturation": 1.08,
+      "surfaceTint": 0.7,
+      "borderContrast": 0.8
+    }
+  },
   "meta": {
-    "mean_saturation": 0.1758,
-    "mean_value": 0.1919,
-    "vivid_weight": 63.7986,
-    "clusters": 3
+    "mean_saturation": 0.3882,
+    "mean_value": 0.5697,
+    "vivid_weight": 15760.5313,
+    "clusters": 2,
+    "scene_mode": "heuristic",
+    "scene": true
   }
 }
 ```
 
-Values shown are examples, not constants.
+Values shown are examples, not constants. The full metric set is documented
+in [scene-aware-theming.md](scene-aware-theming.md).
 
 ### Algorithm
 
 1. Open with Pillow; apply `draft("RGB", 512x512)` for JPEG speed; convert to
    RGB; thumbnail to 256×256 with Lanczos.
-2. Compute HSV for every pixel.
-3. Skip pixels with saturation `< 0.28`, value `< 0.10`, or value `> 0.985`.
-4. Weight = `saturation^1.6 * value`.
-5. Accumulate 36 hue bins of 10°; each stores weighted RGB sums and weight.
-6. Sort bins by weight. A cluster is eligible when weight ≥
+2. If scene mode is enabled:
+   - Build a 64×64 attention map from a colour centre-surround term, a
+     grayscale high-pass term, and a radial centre prior.
+   - Compute tone, colour, structure, region, and attention metrics at
+     128×128.
+   - Derive tags and a palette strategy.
+   - If this step fails, log a warning and continue with the statistical
+     palette.
+3. Compute HSV for every pixel. Accumulate mean saturation and mean value.
+4. Skip pixels with saturation `< 0.28`, value `< 0.10`, or value `> 0.985`.
+5. Weight = `saturation^1.6 * value`.
+   In scene mode multiply by
+   `(0.05 + 0.95 * attention) * row_prior * column_prior`.
+6. Accumulate 36 hue bins of 10°; each stores weighted RGB sums and weight.
+7. Sort bins by weight. A cluster is eligible when weight ≥
    `max(total_weight * 0.004, 0.05)`.
-7. Primary accent: highest-weight eligible cluster.
-8. Clamp primary to HSL lightness `[0.60, 0.80]` and saturation
-   `[0.55, 0.95]`.
-9. Secondary accent: next eligible cluster at least 32° away; clamp to
-   lightness `[0.56, 0.77]` and saturation `[0.45, 0.88]`.
-   If none exists, rotate the primary hue by +60° at lightness 0.66 and
-   saturation `clamp(primary_saturation * 0.8, 0.4, 0.8)`.
-10. ANSI palette:
+8. Primary cluster: highest-weight eligible cluster. In scene mode a leading
+   sky-like cluster is demoted when the image is not overwhelmingly cool and a
+   meaningful alternative family exists. Sunsets prefer the aggregated warm
+   family; nature scenes prefer the green family; a genuinely blue-dominant
+   image keeps its blue cluster. Details are in
+   [scene-aware-theming.md](scene-aware-theming.md).
+9. Seed: clamp the primary cluster to HSL lightness `[0.50, 0.62]` and
+   saturation `[0.55, 0.80]`. The seed is written to `seed.png` for Matugen.
+10. Accent: clamp the primary cluster to HSL lightness `[0.60, 0.80]` and
+    saturation `[0.55, 0.95]`.
+11. Secondary accent: next eligible cluster at least 32° away; clamp to
+    lightness `[0.56, 0.77]` and saturation `[0.45, 0.88]`.
+    If none exists, rotate the primary hue by +60° at lightness 0.66 and
+    saturation `clamp(primary_saturation * 0.8, 0.4, 0.8)`.
+12. ANSI palette:
     - Canonical hues: red 0°, yellow 60°, green 120°, cyan 180°, blue 240°,
       magenta 300°.
     - A cluster may supply a family when its hue is within 24°.
@@ -311,16 +379,19 @@ Values shown are examples, not constants.
       `saturation = clamp(accent_s * 0.55, 0.30, 0.55)`,
       `lightness = clamp(0.58 + accent_l * 0.12, 0.58, 0.72)`.
     - Normal colors clamp to lightness `[0.55, 0.78]` and saturation
-      `[0.28, 0.86]`.
+      `[0.28, 0.86]`, scaled by the strategy’s `ansiSaturation`.
     - Bright colors use `lightness + 0.10`, capped at 0.86.
-11. Grayscale when `total_weight <= 0.05` or no clusters.
+13. Grayscale when `total_weight <= 0.05`, no clusters, or the scene’s
+    `chromaFraction < 0.02`.
     - Accent `#d8d8d8`, soft accent `#b8b8b8`.
     - ANSI uses low-saturation canonical hues: normal lightness 0.64 /
       saturation 0.22; bright 0.76 / 0.18.
-12. `on_accent`/`on_accent_soft` choose `#0c0c0c` or `#f6f6f6` by WCAG
+14. `on_accent`/`on_accent_soft` choose `#0c0c0c` or `#f6f6f6` by WCAG
     contrast.
 
-Mean saturation is recorded but is not used to decide grayscale.
+Mean saturation is recorded but is not used to decide grayscale. With
+`AUTOTHEME_SCENE=off`, steps 2 and 5 are skipped and the output matches the
+pre-scene statistical palette.
 
 ## Matugen roles
 
@@ -335,7 +406,16 @@ input_path = "<repo>/hypr/.config/hypr/scripts/templates/matugen-roles.json"
 output_path = "~/.cache/autotheme/matugen-roles.json"
 ```
 
-Then runs:
+Scene mode runs:
+
+```bash
+matugen image "$SEED_PNG" -m dark -t "$scheme" \
+  --source-color-index 0 --contrast "$contrast" \
+  --lightness-dark "$lightness" \
+  -c "$CACHE_DIR/matugen.toml" -q
+```
+
+With `AUTOTHEME_SCENE=off` it keeps the original form:
 
 ```bash
 matugen image "$sample" -m dark -t scheme-tonal-spot \
@@ -347,8 +427,17 @@ Properties:
 - `--config` isolates the run from `~/.config/matugen/config.toml`.
 - `version_check = false` disables update checks.
 - No `[config.wallpaper]`, so Matugen does not set the wallpaper.
-- `--source-color-index 0` avoids an interactive source-color prompt.
-- `scheme-tonal-spot` produces harmonious dark surfaces.
+- `--source-color-index 0` is required even for a solid seed; without it
+  Matugen reports multiple source colors and refuses to run non-interactively.
+- In scene mode the source is `seed.png`, a 64×64 solid image built from the
+  attention/region-weighted cluster. This prevents a dominant sky from
+  choosing the hue.
+- `scheme`, `contrast`, and `lightnessDark` come from
+  `accents.json.scene.strategy`; values are clamped by the scene analyser.
+- `--lightness-dark` is limited to `[-0.02, 0.02]` because larger negative
+  values move the black point and clip shadows to black.
+- If Matugen rejects the seed, the shell retries once with `$sample` and the
+  same scheme. If that fails, the static fallback is used.
 - `-q` suppresses output; logs go to `last.log`.
 
 `matugen-roles.json` extracts:
@@ -379,22 +468,32 @@ Matugen creates missing output directories.
 
 ### Derived values
 
-Given `surface`:
+Given Matugen `surface` and the scene seed:
 
 ```text
+surface     = align_hue(surface, seed, surfaceTint * 0.5)
 card        = mix(surface, #ffffff, 0.055)
 card_high   = mix(surface, #ffffff, 0.095)
 hover       = mix(surface, #ffffff, 0.13)
-border      = mix(outline_variant, surface, 0.52)
+border      = ensure_contrast(
+                mix(outline_variant, surface, 0.52),
+                surface,
+                1.25 + 0.55 * borderContrast)
 bright      = lighten(accent, 0.10)
 transparent = mix(surface, accent, 0.10)
 ```
 
+`align_hue` changes only the hue; it preserves the surface lightness and
+saturation. It keeps the surfaces coherent when Matugen was run on a fallback
+image instead of the seed.
+
 ### Contrast enforcement
 
 - `fg`: `on_surface`, lifted until contrast ≥ 7.0 against surface.
-- `muted`: `on_surface_variant`, lifted until contrast ≥ 4.0.
-- `accent`, `accentSoft`, `critical`: lifted until contrast ≥ 3.0.
+- `muted`: `on_surface_variant`, lifted until contrast ≥ 4.5.
+- `accent`: lifted until contrast ≥ 4.5.
+- `accentSoft`: lifted until contrast ≥ 4.0.
+- `critical`: lifted until contrast ≥ 3.0.
 - `onAccent`, `onAccentSoft`, `onCritical`: black `#0c0c0c` or white
   `#f6f6f6`, whichever has better contrast.
 - ANSI black = card.
@@ -441,12 +540,22 @@ transparent = mix(surface, accent, 0.10)
   "ansi_black": "#251f18",
   "ansi_bright_black": "#9b8f80",
   "ansi_red": "#c18b8b",
-  "...": "..."
+  "...": "...",
+  "scene": {
+    "version": 1,
+    "confidence": 1.0,
+    "degraded": false,
+    "tags": [{ "name": "sky-water", "confidence": 1.0 }],
+    "strategy": { "scheme": "scheme-fidelity", "...": "..." },
+    "seed": "#cc7050"
+  }
 }
 ```
 
 Values are illustrative. The same document is written to
-`~/.cache/autotheme/theme.json` and `~/.cache/autotheme.json`.
+`~/.cache/autotheme/theme.json` and `~/.cache/autotheme.json`. The `scene`
+block is omitted when `AUTOTHEME_SCENE=off`; `theme_is_current` then skips the
+scene-version check.
 
 ## Rendering
 
@@ -518,9 +627,13 @@ Mode model:
 - `kitty-mode <explicit>` applies to the requested PID or all instances and
   writes the corresponding mode files.
 
-Neovim reads
-`$XDG_RUNTIME_DIR/kitty-mode-$KITTY_PID` and switches Gruvbox transparency
-accordingly.
+### Neovim
+
+`nvim/.config/nvim/lua/core/autotheme.lua` reads
+`~/.cache/autotheme/theme.json` at startup, defines Neovim highlight groups from
+the palette, and polls the file every two seconds for updates. It also reads
+`$XDG_RUNTIME_DIR/kitty-mode-$KITTY_PID` to switch between a transparent and a
+solid background. There is no predefined Neovim colorscheme.
 
 ### Waybar
 
@@ -650,7 +763,8 @@ The `config.reloaded` hook in `hyprland.lua` calls
 ### Fish and Starship
 
 No generated files. Fish and Starship use ANSI color names, so they follow
-Kitty’s generated `color0`–`color15`. Nvim remains on Gruvbox.
+Kitty’s generated `color0`–`color15`. Neovim uses the generated palette through
+`core/autotheme.lua`.
 
 ## Picker
 
@@ -699,12 +813,12 @@ thumbnail is missing. `ensure_thumbs` does not delete orphaned thumbnails.
 
 | Role | Value |
 | --- | --- |
-| surface | `#141218` |
-| outline | `#938f99` |
-| outline_variant | `#49454f` |
-| on_surface | `#e6e0e9` |
-| on_surface_variant | `#cac4d0` |
-| error | `#f2b8b5` |
+| surface | `#121212` |
+| outline | `#8a8a8a` |
+| outline_variant | `#3a3a3a` |
+| on_surface | `#e6e6e6` |
+| on_surface_variant | `#a8a8a8` |
+| error | `#ffb4ab` |
 | on_error | `#601410` |
 
 `NEUTRAL_FALLBACK`:
@@ -719,15 +833,30 @@ thumbnail is missing. `ensure_thumbs` does not delete orphaned thumbnails.
 | error | `#f2b8b5` |
 | on_error | `#601410` |
 
+### Scene analysis failure
+
+If `scene.py` raises an exception, `vibrant.py` logs
+`scene analysis failed` and continues with the unweighted statistical palette.
+`accents.json` then has no `scene` or `seed` key, and the shell keeps the
+original Matugen invocation (`$sample`, `scheme-tonal-spot`). Scene failure is
+never fatal.
+
+If the seed image is missing or Matugen rejects it, the shell retries once with
+the original wallpaper and the same scheme. If that fails, the static fallback
+is used.
+
+If `theme.json` has no `scene.version` or a version lower than `SCENE_VERSION`,
+`theme_is_current` treats the cached theme as stale and regenerates it.
+
 ### Vibrant/Pillow failure
 
 `accents.json` is written as `{}`. `build_theme.py` uses `DEFAULT_ACCENTS`:
 
 | Key | Value |
 | --- | --- |
-| accent | `#d0bcff` |
-| accent_soft | `#efb8c8` |
-| ANSI | `#c18b8b #d3acac #c1c18b #d3d3ac #8bc18b #acd3ac #8bc1c1 #acd3d3 #8b8bc1 #acacd3 #c18bc1 #d3acd3` |
+| accent | `#d0d0d0` |
+| accent_soft | `#a8a8a8` |
+| ANSI | `#b78f8f #cdb7b7 #b7b78f #cdcdb7 #8fb78f #b7cdb7 #8fb7b7 #b7cdcd #8f8fb7 #b7b7cd #b78fb7 #cdb7cd` |
 
 Matugen still runs unless the image was already classified as grayscale.
 
@@ -769,6 +898,7 @@ Reload behavior by surface:
 | Hyprland borders | Immediate via `hyprctl eval`; reapplied on `config.reloaded` |
 | Waybar | Regenerated and `SIGUSR2` |
 | Kitty | `kitten @ set-colors` per instance |
+| Neovim | Polls `theme.json` every two seconds and reapplies highlights |
 | Dunst | Drop-in rewritten and `dunstctl reload` |
 | Wofi | Next launch |
 | GTK | Next application restart |
@@ -782,7 +912,9 @@ sudo pacman -S --needed matugen awww python-pillow jq ffmpeg imagemagick
 ```
 
 - `awww` and `matugen` are in `extra`.
-- `python-pillow` is required by `vibrant.py`.
+- `python-pillow` is required by `vibrant.py` and `scene.py`.
+- The scene layer adds no package, model, service, or daemon. It is Pillow
+  only.
 - `jq`, `ffmpeg`, `ffprobe`, and ImageMagick are used by shell helpers.
 - `kitten` is required for live Kitty updates.
 - `hyprctl` is required for borders and monitor enumeration.
@@ -806,7 +938,12 @@ sudo pacman -S --needed matugen awww python-pillow jq ffmpeg imagemagick
             ~/.config/hypr/scripts/lib/*.py
    ~/.config/hypr/scripts/wallpaper_switch.sh init
    ```
-5. Apply:
+5. Run the scene tests:
+   ```bash
+   python3 -m unittest discover \
+     -s tests -p 'test_*.py' -v
+   ```
+6. Apply:
    ```bash
    ~/.config/hypr/scripts/wallpaper_switch.sh apply <wallpaper-file>
    ```
@@ -816,6 +953,9 @@ sudo pacman -S --needed matugen awww python-pillow jq ffmpeg imagemagick
 ```bash
 ~/.config/hypr/scripts/wallpaper_switch.sh doctor
 jq . ~/.cache/autotheme/theme.json
+jq '{seed, scene}' ~/.cache/autotheme/accents.json
+~/.config/hypr/scripts/wallpaper_switch.sh scene
+~/.config/hypr/scripts/wallpaper_switch.sh explain
 readlink ~/.cache/autotheme/kitty.conf
 kitten @ ls
 kitten @ --to unix:$XDG_RUNTIME_DIR/kitty-<pid> get-colors | head
@@ -826,12 +966,26 @@ cat ~/.config/dunst/dunstrc.d/autotheme.conf
 
 Expected:
 
-- `doctor` reports a backend and a present theme.
-- `theme.json` contains `bg`, `accent`, `fg`.
+- `doctor` reports a backend, a present theme, and scene tags.
+- `theme.json` contains `bg`, `accent`, `fg`, and `scene.version`.
+- `accents.json` contains a `seed` and the full scene document.
+- `scene` prints valid JSON; `explain` prints seed, scheme, contrast, and
+  lightness.
 - The active Kitty variant exists.
 - `awww query` reports the current image.
 - Border gradient matches the theme accent.
 - Dunst drop-in exists.
+
+Test the scene regression:
+
+```bash
+AUTOTHEME_SCENE=off AUTOTHEME_FORCE=1 \
+  ~/.config/hypr/scripts/wallpaper_switch.sh regenerate
+jq '{scene, seed}' ~/.cache/autotheme/theme.json
+```
+
+Expected: both are `null`/absent, and the original Matugen invocation is used.
+Run `regenerate` again with the default scene mode to restore the scene theme.
 
 Test fallback:
 
@@ -841,7 +995,7 @@ AUTOTHEME_MATUGEN=never AUTOTHEME_FORCE=1 \
 jq '.bg' ~/.cache/autotheme/theme.json
 ```
 
-Expected: fallback surface `#141218`, complete theme.
+Expected: fallback surface `#121212`, complete theme.
 
 ## Known limitations
 
@@ -853,10 +1007,22 @@ Expected: fallback surface `#141218`, complete theme.
 - Thumbnail cache is stored inside the repository and Stow does not ignore it.
 - `AUTOTHEME_MATUGEN=always` behaves like `auto`; only `never` disables
   Matugen.
-- `theme_is_current` uses path and mtime only.
+- `theme_is_current` uses path, mtime, and the scene version. It does not hash
+  file contents, so an in-place edit that preserves mtime is not detected.
+- Scene analysis is heuristic, not semantic. It has no object masks and no
+  vision-language model.
+- `skinFraction` is recorded for diagnostics but is not used; it
+  false-positives on warm-toned images.
+- The attention map can miss very large subjects whose interiors match their
+  surroundings, and can favor high-contrast text or edges.
+- Scene thresholds are versioned by `scene.VERSION` and `SCENE_VERSION`; both
+  must be bumped when the strategy changes.
 - Older Kitty instances can have mixed modes until `terminal` or
   `kitty-mode` is run for that instance.
 - `kitty-opacity.fish` does not switch the active generated variant.
+- Neovim applies theme changes on a two-second poll; an already-running
+  Neovim process that was started before this integration must be restarted
+  once.
 - Hyprlock’s visual override is not verified.
 - Plain `waybar` without `waybar-scale.py` has undefined `@` tokens.
 - Dunst drop-in changes colors only.
@@ -864,6 +1030,7 @@ Expected: fallback surface `#141218`, complete theme.
 
 ## Related documentation
 
+- [scene-aware-theming.md](scene-aware-theming.md)
 - [waybar-status-bar.md](waybar-status-bar.md)
 - [wofi-launcher.md](wofi-launcher.md)
 - [terminal-shell-and-prompt.md](terminal-shell-and-prompt.md)

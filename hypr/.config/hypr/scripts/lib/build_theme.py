@@ -4,19 +4,20 @@
 from __future__ import annotations
 
 import argparse
+import colorsys
 import json
 import sys
 import time
 from pathlib import Path
 
-# Static dark baseline used when matugen is unavailable.
+# Neutral dark baseline used when matugen is unavailable.
 DARK_FALLBACK = {
-    "surface": "#141218",
-    "outline": "#938f99",
-    "outline_variant": "#49454f",
-    "on_surface": "#e6e0e9",
-    "on_surface_variant": "#cac4d0",
-    "error": "#f2b8b5",
+    "surface": "#121212",
+    "outline": "#8a8a8a",
+    "outline_variant": "#3a3a3a",
+    "on_surface": "#e6e6e6",
+    "on_surface_variant": "#a8a8a8",
+    "error": "#ffb4ab",
     "on_error": "#601410",
 }
 
@@ -34,23 +35,23 @@ NEUTRAL_FALLBACK = {
 
 DEFAULT_ACCENTS = {
     "grayscale": False,
-    "accent": "#d0bcff",
-    "accent_soft": "#efb8c8",
-    "on_accent": "#1d192b",
-    "on_accent_soft": "#3b1f2b",
+    "accent": "#d0d0d0",
+    "accent_soft": "#a8a8a8",
+    "on_accent": "#111111",
+    "on_accent_soft": "#111111",
     "ansi": {
-        "red": "#c18b8b",
-        "bright_red": "#d3acac",
-        "yellow": "#c1c18b",
-        "bright_yellow": "#d3d3ac",
-        "green": "#8bc18b",
-        "bright_green": "#acd3ac",
-        "cyan": "#8bc1c1",
-        "bright_cyan": "#acd3d3",
-        "blue": "#8b8bc1",
-        "bright_blue": "#acacd3",
-        "magenta": "#c18bc1",
-        "bright_magenta": "#d3acd3",
+        "red": "#b78f8f",
+        "bright_red": "#cdb7b7",
+        "yellow": "#b7b78f",
+        "bright_yellow": "#cdcdb7",
+        "green": "#8fb78f",
+        "bright_green": "#b7cdb7",
+        "cyan": "#8fb7b7",
+        "bright_cyan": "#b7cdcd",
+        "blue": "#8f8fb7",
+        "bright_blue": "#b7b7cd",
+        "magenta": "#b78fb7",
+        "bright_magenta": "#cdb7cd",
     },
 }
 
@@ -88,13 +89,27 @@ def darken(value: str, amount: float) -> str:
     return mix(value, "#000000", amount)
 
 
+def align_hue(value: str, seed: str, strength: float) -> str:
+    """Rotate *value* toward the seed hue without changing its lightness."""
+    red, green, blue = (component / 255.0 for component in hex_to_rgb(value))
+    hue, lightness, saturation = colorsys.rgb_to_hls(red, green, blue)
+    seed_red, seed_green, seed_blue = (
+        component / 255.0 for component in hex_to_rgb(seed)
+    )
+    seed_hue = colorsys.rgb_to_hls(seed_red, seed_green, seed_blue)[0]
+    delta = ((seed_hue - hue + 0.5) % 1.0) - 0.5
+    hue = (hue + delta * clamp(strength)) % 1.0
+    red, green, blue = colorsys.hls_to_rgb(hue, lightness, saturation)
+    return rgb_to_hex((red * 255.0, green * 255.0, blue * 255.0))
+
+
 def relative_luminance(value: str) -> float:
     def channel(component: int) -> float:
-        component = component / 255.0
+        channel_value = component / 255.0
         return (
-            component / 12.92
-            if component <= 0.04045
-            else ((component + 0.055) / 1.055) ** 2.4
+            channel_value / 12.92
+            if channel_value <= 0.04045
+            else ((channel_value + 0.055) / 1.055) ** 2.4
         )
 
     r, g, b = (channel(c) for c in hex_to_rgb(value))
@@ -153,6 +168,10 @@ def build(args: argparse.Namespace) -> dict:
     if not accents:
         accents = DEFAULT_ACCENTS
 
+    scene = accents.get("scene") if isinstance(accents.get("scene"), dict) else {}
+    strategy = scene.get("strategy") if isinstance(scene.get("strategy"), dict) else {}
+    seed = accents.get("seed") if isinstance(accents.get("seed"), str) else ""
+
     grayscale = bool(accents.get("grayscale")) or args.fallback == "neutral"
     fallback = NEUTRAL_FALLBACK if grayscale else DARK_FALLBACK
 
@@ -165,6 +184,16 @@ def build(args: argparse.Namespace) -> dict:
             return default
 
     surface = role("surface", fallback["surface"])
+    if seed:
+        try:
+            tint = float(strategy.get("surfaceTint", 0.0))
+        except (TypeError, ValueError):
+            tint = 0.0
+        if tint > 0.0:
+            try:
+                surface = align_hue(surface, seed, clamp(tint) * 0.5)
+            except ValueError:
+                pass
     on_surface = role("on_surface", fallback["on_surface"])
     on_surface_variant = role("on_surface_variant", fallback["on_surface_variant"])
     outline = role("outline", fallback["outline"])
@@ -178,6 +207,15 @@ def build(args: argparse.Namespace) -> dict:
     card_high = mix(surface, "#ffffff", 0.095)
     hover = mix(surface, "#ffffff", 0.13)
     border = mix(outline_variant, surface, 0.52)
+    try:
+        border_strength = float(strategy.get("borderContrast", 0.80))
+    except (TypeError, ValueError):
+        border_strength = 0.80
+    border = ensure_contrast(
+        border,
+        surface,
+        1.25 + 0.55 * clamp(border_strength),
+    )
 
     accent = str(accents.get("accent") or DEFAULT_ACCENTS["accent"]).lower()
     accent_soft = str(
@@ -195,9 +233,9 @@ def build(args: argparse.Namespace) -> dict:
     # Material dark roles are already readable on a dark surface, but a bad
     # wallpaper or a custom role should never produce an unreadable theme.
     foreground = ensure_contrast(on_surface, surface, 7.0)
-    muted = ensure_contrast(on_surface_variant, surface, 4.0)
-    accent = ensure_contrast(accent, surface, 3.0)
-    accent_soft = ensure_contrast(accent_soft, surface, 3.0)
+    muted = ensure_contrast(on_surface_variant, surface, 4.5)
+    accent = ensure_contrast(accent, surface, 4.5)
+    accent_soft = ensure_contrast(accent_soft, surface, 4.0)
     critical = ensure_contrast(error, surface, 3.0)
     on_critical = choose_on(critical)
     on_accent = choose_on(accent)
@@ -216,7 +254,7 @@ def build(args: argparse.Namespace) -> dict:
         f"ansi_{name}": value for name, value in ansi.items() if isinstance(value, str)
     }
 
-    return {
+    theme = {
         "wallpaper": str(args.wallpaper) if args.wallpaper else "",
         "mtime": int(args.mtime),
         "generated": int(time.time()),
@@ -252,6 +290,16 @@ def build(args: argparse.Namespace) -> dict:
         "ansi": ansi,
         **ansi_flat,
     }
+    if scene:
+        theme["scene"] = {
+            "version": int(scene.get("version", 1)),
+            "confidence": scene.get("confidence", 0),
+            "degraded": bool(scene.get("degraded", False)),
+            "tags": scene.get("tags", []),
+            "strategy": strategy,
+            "seed": seed,
+        }
+    return theme
 
 
 def write_json(path: Path, value: dict) -> None:

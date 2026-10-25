@@ -90,13 +90,18 @@ The pipeline is:
 
 1. `awww` paints the wallpaper with a random wave/wipe transition. Animated
    GIFs play normally. `hyprpaper` remains a fallback if `awww` is unavailable.
-2. `lib/vibrant.py` extracts the wallpaper's most vivid hues, a per-hue ANSI
-   palette and a grayscale flag.
-3. `matugen` generates the dark Material You surfaces from the image. Your own
+2. `lib/scene.py` builds a 64×64 attention map, derives tone/colour/structure
+   metrics, and selects a palette strategy. It is Pillow-only: no model, no
+   daemon, no persistent memory.
+3. `lib/vibrant.py` extracts the wallpaper's most vivid hues, weights them by
+   attention and region, and writes a scene-selected seed colour. A large
+   smooth sky no longer outvotes a small saturated subject; a genuinely
+   blue-dominant image still keeps its blue.
+4. `matugen` generates the dark Material You surfaces from the seed. Your own
    `~/.config/matugen/config.toml` is never touched.
-4. `lib/build_theme.py` merges the two, checks contrast and writes
-   `~/.cache/autotheme/theme.json`.
-5. `lib/render.py` renders Kitty, Waybar, Wofi, Dunst, GTK and Hyprlock
+5. `lib/build_theme.py` merges the two, aligns the surface hue, checks
+   contrast and writes `~/.cache/autotheme/theme.json`.
+6. `lib/render.py` renders Kitty, Waybar, Wofi, Dunst, GTK and Hyprlock
    templates. The live surfaces are reloaded without restarting Wayland.
 
 Kitty has two generated variants: opaque uses a pure black background, while
@@ -111,13 +116,21 @@ Useful commands:
 ~/.config/hypr/scripts/wallpaper_switch.sh restore
 ~/.config/hypr/scripts/wallpaper_switch.sh regenerate
 ~/.config/hypr/scripts/wallpaper_switch.sh list-json | jq '.[].name'
+~/.config/hypr/scripts/wallpaper_switch.sh scene | jq '{tags, strategy, seed}'
+~/.config/hypr/scripts/wallpaper_switch.sh explain
 ~/.config/hypr/scripts/wallpaper_switch.sh doctor
 ```
 
+Scene analysis is enabled by default. Set `AUTOTHEME_SCENE=off` to restore the
+pre-scene statistical palette. The scene layer adds roughly 20–40 ms of CPU
+per wallpaper change and no measurable peak memory; it runs in the existing
+`vibrant.py` process and exits. It has no model download and no background
+service.
+
 If `matugen` is missing or fails, a static dark palette is rendered from the
 same templates. Grayscale wallpapers get a neutral monochrome theme instead of
-matugen's blue fallback. Nvim keeps its gruvbox colours; Fish, Starship and
-Kitty syntax colours follow the generated ANSI palette.
+matugen's blue fallback. Neovim, Fish, Starship and Kitty colours all follow the
+generated palette; Neovim reloads its highlight groups when the theme changes.
 
 ### 🐚 Terminal & Editors
 *   **Fish Shell**: Modern, interactive shell equipped with live syntax highlighting, autosuggestions based on command history, and custom functional wrappers.

@@ -1,15 +1,15 @@
-/* Confirm dialog — deep everforest base, red NO / sage-green YES */
+/* Confirm dialog — neutral dark fallback, red NO / green YES */
 
 * {
   font-family: "Adwaita Sans", "Noto Sans", sans-serif;
   font-size: 12px;
-  color: #d3c6aa;
+  color: #e6e6e6;
 }
 
 window {
-  border: 1px solid #3d484d;
+  border: 1px solid #3a3a3a;
   border-radius: 12px;
-  background-color: #262d33;
+  background-color: #101010;
 }
 
 #outer-box {
@@ -25,7 +25,7 @@ window {
   padding: 8px 10px;
   border: none;
   border-radius: 8px;
-  background-color: #323c41;
+  background-color: #1a1a1a;
   box-shadow: none;
   outline: none;
   color: #ffffff;
@@ -39,37 +39,37 @@ window {
 #entry {
   margin: 4px;
   padding: 9px 20px;
-  border: 1px solid #3d484d;
+  border: 1px solid #3a3a3a;
   border-radius: 7px;
-  background-color: #323c41;
+  background-color: #1a1a1a;
 }
 
 #text {
   font-size: 12px;
   font-weight: 600;
-  color: #d3c6aa;
+  color: #e6e6e6;
 }
 
 /* NO — red background, white text */
 
 #entry:first-child {
-  background-color: #e64545;
-  border-color: #e64545;
+  background-color: #ff6b6b;
+  border-color: #ff6b6b;
 }
 
 #entry:first-child #text {
   color: #ffffff;
 }
 
-/* YES — everforest sage */
+/* YES — green */
 
 #entry:last-child {
-  background-color: #a7c080;
-  border-color: #a7c080;
+  background-color: #a6e3a1;
+  border-color: #a6e3a1;
 }
 
 #entry:last-child #text {
-  color: #21282b;
+  color: #111111;
 }
 
 /* Selected / focused button — white ring, labels keep their colour */
@@ -84,7 +84,7 @@ window {
 }
 
 #entry:last-child:selected #text {
-  color: #21282b;
+  color: #111111;
   font-weight: 700;
 }
 

@@ -123,8 +123,8 @@ targets aside before linking.
         │
         └── Autotheme
             wallpaper_switch.sh, wallpaper_picker.sh,
-            vibrant.py, build_theme.py, render.py,
-            templates/*
+            scene.py, vibrant.py, build_theme.py, render.py,
+            templates/*; repo-root tests/test_scene.py
 ```
 
 ### Runtime flows
@@ -132,11 +132,11 @@ targets aside before linking.
 | Flow | Trigger | Result |
 | --- | --- | --- |
 | Login | `hyprland.start` | Battery notifier, adaptive font, NetworkManager applet, Waybar, wallpaper restore, PolicyKit, Bluetooth applet, clipboard watchers |
-| Wallpaper switch | `SUPER+T` or CLI | Paint wallpaper, extract palette, run Matugen, render surfaces, reload Waybar/Kitty/Dunst, update borders |
+| Wallpaper switch | `SUPER+T` or CLI | Paint wallpaper, analyse scene, extract a weighted seed/palette, run Matugen, render surfaces, reload Waybar/Kitty/Dunst, update borders |
 | Terminal opacity | `terminal` function | Fade Kitty opacity, write per-instance mode, switch generated Kitty variant, update Neovim transparency |
 | UI scale | `SUPER+=` / `SUPER+-` | Change focused monitor scale, regenerate Waybar CSS |
 | Trash | `safe-rm` / `trash` | Hash content, store blob, update SQLite catalog, restore/purge/clean |
-| Editor | `nvim` | Load core modules, LSP, completion, document mode, pinned plugins |
+| Editor | `nvim` | Load core modules, LSP, completion, document mode, pinned plugins, and the wallpaper-derived colorscheme |
 | Agent CLI | `opencode` | Load provider/MCP/plugin config, secrets from environment, skills and global instructions |
 
 ## Generated and runtime files
@@ -145,7 +145,8 @@ targets aside before linking.
 | --- | --- | --- |
 | `~/.cache/autotheme/theme.json` | `build_theme.py` | Canonical palette |
 | `~/.cache/autotheme.json` | `build_theme.py --compat` | Legacy palette copy |
-| `~/.cache/autotheme/accents.json` | `vibrant.py` | Extracted accents and ANSI colors |
+| `~/.cache/autotheme/accents.json` | `vibrant.py` | Extracted seed, accents, ANSI colors, and scene document |
+| `~/.cache/autotheme/seed.png` | `vibrant.py` | 64×64 solid seed for Matugen |
 | `~/.cache/autotheme/matugen-roles.json` | `matugen` | Raw Material You roles |
 | `~/.cache/autotheme/kitty-*.conf` | `render.py` | Kitty variants |
 | `~/.cache/autotheme/kitty.conf` | symlink | Active Kitty variant |

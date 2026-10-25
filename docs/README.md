@@ -47,12 +47,13 @@ removed `system-dashboard`, a non-existent `hyprland.conf`, and the legacy
 | [hyprland-configuration.md](hyprland-configuration.md) | `hyprland.lua`, monitor/environment/autostart, appearance, keybindings, window rules, Hypridle, Hyprlock, Hyprpaper |
 | [hyprland-automation-scripts.md](hyprland-automation-scripts.md) | Battery notifier, adaptive font, UI scaling, Waybar scaling, workspace helpers, power menu, close confirmation, night light |
 | [autotheme-and-wallpaper-engine.md](autotheme-and-wallpaper-engine.md) | Wallpaper backends, palette extraction, Matugen, theme construction, templates, per-surface integration, picker, state, fallbacks |
+| [scene-aware-theming.md](scene-aware-theming.md) | Pillow-only attention map, metrics, tags, strategy, seed selection, resource budget, scene regression tests |
 | [waybar-status-bar.md](waybar-status-bar.md) | Module layout, active/inactive modules, styling tokens, scaling, Bluetooth provider |
 | [wofi-launcher.md](wofi-launcher.md) | Launcher, browser picker, power menu, confirmation dialog, generated styles |
 | [terminal-shell-and-prompt.md](terminal-shell-and-prompt.md) | Kitty, Fish, Starship, opacity model, adaptive font integration, encrypted-vault `cd` |
 | [notifications-gtk-and-lock-screen.md](notifications-gtk-and-lock-screen.md) | Dunst, GTK 3/4, Hyprlock, observed SDDM Maya/GRUB state |
 | [trash-management-system.md](trash-management-system.md) | CAS trash architecture, SQLite schema, `safe-rm`, CLI, manifests, timers, installation, risks |
-| [neovim-configuration.md](neovim-configuration.md) | Core options/keymaps/autocommands, LSP, AutoImport, completion, document mode, plugins |
+| [neovim-configuration.md](neovim-configuration.md) | Core options/keymaps/autocommands, wallpaper-derived colorscheme, LSP, AutoImport, completion, document mode, plugins |
 | [opencode-agent-configuration.md](opencode-agent-configuration.md) | Provider, MCP servers, Omo-Slim presets, `AGENTS.md`, skills, secrets |
 | [document-and-file-utilities.md](document-and-file-utilities.md) | `docx2pdf`, `pdf2docx`, `pdfmerge`, `open.fish`, Zathura, XDG defaults |
 | [supporting-tools.md](supporting-tools.md) | Lid scripts, wallpaper generators, htop |
@@ -140,6 +141,11 @@ The documentation was prepared with the following checks:
 | GTK3/GTK4 CSS parsing | Pass |
 | Waybar/Wofi generated CSS parsing | Pass |
 | Autotheme `doctor`, `apply`, `restore`, `regenerate`, `init`, `kitty-mode`, border apply | Exercised |
+| Scene unit tests (`test_scene.py`) | Pass |
+| Scene `scene` / `explain` commands | Exercised |
+| `AUTOTHEME_SCENE=off` regression | Pass |
+| Scene CPU/RSS budget | Pass |
+| Neovim dynamic colorscheme loading | Pass |
 | Hyprlock visual override | Not exercised |
 | SDDM Maya deployment | Not implemented |
 | Trash runtime | Not initialized |

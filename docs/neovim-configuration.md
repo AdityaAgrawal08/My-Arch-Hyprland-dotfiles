@@ -1,13 +1,13 @@
 # Neovim Configuration
 
-**Status:** Configuration and syntax verified. Full plugin synchronization and
-runtime LSP startup were not exercised.
+**Status:** Configuration, syntax, and dynamic colorscheme loading verified.
+Full plugin synchronization and runtime LSP startup were not exercised.
 
 ## Purpose
 
 Provides a Lua-based Neovim environment built on `lazy.nvim`, with LSP,
 completion, AutoImport, formatting, document editing, Markdown tooling, Git
-integration, and a Gruvbox theme that follows Kitty transparency.
+integration, and a wallpaper-derived colorscheme that follows Kitty transparency.
 
 ## Scope
 
@@ -35,6 +35,7 @@ nvim/.config/nvim/
 └── lua/
     ├── core/
     │   ├── autocmds.lua
+    │   ├── autotheme.lua
     │   ├── autoimport.lua
     │   ├── document.lua
     │   ├── keymaps.lua
@@ -68,6 +69,7 @@ require("core.autoimport").setup({
   organize_imports_on_save = true,
 })
 require("core.autocmds")
+require("core.autotheme").setup()
 require("plugins.init")
 ```
 
@@ -320,18 +322,28 @@ Git:
 
 ## UI and theme
 
+`core/autotheme.lua`:
+
+- Reads `~/.cache/autotheme/theme.json`.
+- Defines Neovim highlight groups from `bg`, `surface`, `border`, `fg`,
+  `muted`, `accent`, `accentSoft`, `critical`, `warning`, `success`, and the
+  ANSI palette.
+- Reads `$XDG_RUNTIME_DIR/kitty-mode-$KITTY_PID`:
+  - `transparent` → transparent `Normal` background.
+  - `opaque` → solid `bg` background.
+  - Missing mode file → transparent.
+- Polls `theme.json` and the Kitty mode file every two seconds and reapplies
+  highlights when either changes.
+- Falls back to a neutral dark palette if `theme.json` is missing or invalid.
+
 `plugins/ui.lua`:
 
 - `nvim-web-devicons`
-- `gruvbox.nvim` priority 1000:
-  - Reads `$XDG_RUNTIME_DIR/kitty-mode-$KITTY_PID`.
-  - `transparent` → `transparent_mode = true`.
-  - `opaque` → solid Gruvbox.
-  - Missing file → creates `transparent`.
-  - Watches with `uv.new_fs_event()`.
-- `lualine.nvim`: Gruvbox theme, global status, mode/branch/diff/diagnostics/
-  filename/encoding/fileformat/filetype/progress/location.
-- `nvim-notify`: black background; replaces `vim.notify`.
+- `lualine.nvim`: `auto` theme (derived from current highlight groups), global
+  status, mode/branch/diff/diagnostics/filename/encoding/fileformat/filetype/
+  progress/location.
+- `nvim-notify`: background uses `core.autotheme` surface color; replaces
+  `vim.notify`.
 - `noice.nvim`: bottom search, command palette, long-message split,
   inc-rename.
 - `inc-rename.nvim`
@@ -460,6 +472,10 @@ Inside Neovim:
 - Lua files are syntactically valid.
 - `lazy-lock.json` pins plugin commits.
 - `nvim --headless "+Lazy! sync" +qa` installs pinned plugins.
+- `vim.g.colors_name` is `autotheme`, and `Normal` matches
+  `~/.cache/autotheme/theme.json`.
+- The colorscheme watcher reapplies highlights after `theme.json` or the Kitty
+  mode file changes.
 - `:checkhealth` reports missing external tools.
 - `:Mason` shows LSP server state.
 - `:LspInfo` / `:checkhealth lsp` shows attached clients.
@@ -481,6 +497,10 @@ Inside Neovim:
 - Vimtex PDF output needs `latexmk` and a TeX distribution.
 - `lazy-lock.json` pins versions; updates require `:Lazy update` and a lockfile
   commit.
+- Neovim colors depend on `~/.cache/autotheme/theme.json`; if the file is
+  missing or malformed, the neutral fallback is used.
+- The watcher applies changes on a two-second poll. A Neovim process started
+  before the integration was installed must be restarted once.
 - Adding `navigation`/`dap` requires importing them in `plugins/init.lua`.
 
 ## Related documentation

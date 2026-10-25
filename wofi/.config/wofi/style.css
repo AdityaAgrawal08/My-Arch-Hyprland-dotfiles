@@ -1,7 +1,7 @@
 /* Window styling */
 window {
-  border: 1px solid #3d484d;
-  background-color: #2b3339;
+  border: 1px solid #3a3a3a;
+  background-color: #101010;
   border-radius: 10px;
 }
 
@@ -16,9 +16,9 @@ window {
 #input {
   margin: 8px;
   padding: 6px;
-  border: 1px solid #3d484d;
-  background-color: #323c41;
-  color: #d3c6aa;
+  border: 1px solid #3a3a3a;
+  background-color: #1a1a1a;
+  color: #e6e6e6;
   border-radius: 8px;
 }
 
@@ -32,16 +32,16 @@ window {
 /* Text */
 #text {
   margin: 4px;
-  color: #d3c6aa;
+  color: #e6e6e6;
 }
 
 /* Selected Entry */
 #entry:selected {
-  background-color: #3d484d;
+  background-color: #3a3a3a;
 }
 
 #text:selected {
-  color: #d3c6aa;
+  color: #e6e6e6;
   font-weight: bold;
 }
 
@@ -51,6 +51,6 @@ scrollbar {
 }
 
 scrollbar slider {
-  background-color: #323c41;
+  background-color: #1a1a1a;
   border-radius: 4px;
 }

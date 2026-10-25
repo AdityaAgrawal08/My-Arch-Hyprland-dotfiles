@@ -207,7 +207,7 @@ Behavior:
 1. Read the focused monitor scale.
 2. Compute `ratio = 1.5 / current_scale`.
 3. Scale every `Npx` value in `style.css` by `ratio`.
-4. Read the generated palette; use the built-in Everforest fallback if missing.
+4. Read the generated palette; use the built-in neutral fallback if missing.
 5. Write the palette plus scaled CSS to the cache.
 6. `start` executes `waybar -s ~/.cache/waybar/style.css`.
 7. `apply` sends `SIGUSR2` to Waybar.

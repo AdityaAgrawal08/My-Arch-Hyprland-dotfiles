@@ -71,15 +71,13 @@ sound file.
 
 ### `scripts/generate_wallpaper.py`
 
-Generates a 1920×1080 Everforest-style abstract wallpaper with Cairo.
+Generates a 1920×1080 abstract wallpaper with Cairo.
 
 Behavior:
 
-- Background `#2b3339`.
-- Top-left polygon `#323c41` at 0.4 opacity.
-- Bottom-right polygon `#3d484d` at 0.3 opacity.
-- Center-left circle `#7fbbb3` at 0.06 opacity, 1.5 px line.
-- Two intersecting lines `#a7c080` at 0.08 opacity, 1.2 px.
+- Dark background with two subtle polygons.
+- A faint circle and two intersecting lines.
+- Fixed dark green/teal palette defined in the script.
 - Writes a PNG under `~/Pictures`.
 
 Dependency: Python 3 + `pycairo`.
@@ -89,7 +87,7 @@ Limitations:
 - Output is outside the autotheme wallpaper library, so it does not appear in
   the wallpaper picker automatically.
 - No CLI options.
-- Fixed Everforest palette.
+- Fixed dark green/teal palette.
 
 ### `scripts/process_wallpaper.py`
 
@@ -101,7 +99,7 @@ Behavior:
 - Resize to 1920×1040.
 - Brightness 0.72.
 - Saturation 0.60.
-- Composite a 15% Everforest overlay `(43, 51, 57, 38)`.
+- Composite a 15% dark overlay.
 - Paste onto a 1920×1080 black canvas at y=40.
 - Write to the autotheme wallpaper assets directory.
 
