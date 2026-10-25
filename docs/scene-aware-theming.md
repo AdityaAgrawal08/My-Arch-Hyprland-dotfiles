@@ -101,7 +101,7 @@ Tags are emitted only when their confidence is at least 0.35.
 | `cool` | cool hue fraction above 0.55 |
 | `nature` | green pixel fraction above 0.10 |
 | `sky-water` | blue or sky-like fraction above 0.18 |
-| `sunset` | warm fraction above 0.08 and a sky-like top band above 0.25 |
+| `sunset` | warm fraction above 0.10 and a sky-like top band above 0.25 |
 | `urban` | high edge density, low green fraction, some chroma |
 
 Tags are descriptive. They do not name objects. A sunset can carry both
@@ -314,11 +314,16 @@ changing the wallpaper or the analyser.
   `#d17e61`, and a warm background `#150f0c`.
 - A blue-dominant wallpaper produces a blue seed `#3977c6`, consistent with
   its content.
+- A sunset with a large warm family produces a warm seed (coral/pink) rather
+  than blue, while a blue night scene with small warm lights stays blue.
 - `wallpaper_switch.sh scene` and `explain` read the generated document.
-- `AUTOTHEME_SCENE=off` emits no `scene` or `seed` keys and keeps the original
-  Matugen invocation.
+- `AUTOTHEME_SCENE=off` emits no `scene` or `seed` keys, keeps the original
+  Matugen invocation, and invalidates a cached scene theme even when the
+  wallpaper is unchanged.
+- If analysis raises, `accents.json.scene.degraded` is true, no seed is
+  emitted, and the versioned marker keeps the cache valid.
 - `theme_is_current` rejects cached themes whose scene version is missing or
-  stale.
+  stale, and requires the mode to match `AUTOTHEME_SCENE`.
 - Hyprland border, Kitty include, Waybar CSS, Wofi CSS, Dunst reload, and
   Neovim highlight verification still pass after regeneration.
 

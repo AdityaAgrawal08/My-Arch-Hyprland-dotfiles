@@ -16,7 +16,7 @@ import math
 
 from PIL import Image, ImageChops, ImageFilter, ImageOps
 
-VERSION = 1
+VERSION = 3
 ATTENTION_SIZE = 64
 METRIC_SIZE = 128
 
@@ -53,6 +53,8 @@ def build_attention(image: Image.Image) -> list[int]:
     the map combines a coarse colour centre-surround term with a grayscale
     high-pass term.  Both are cheap Pillow filters.
     """
+    if image.mode != "RGB":
+        image = image.convert("RGB")
     small = image.resize((ATTENTION_SIZE, ATTENTION_SIZE), Image.Resampling.BILINEAR)
 
     surround = small.filter(ImageFilter.GaussianBlur(6))
@@ -120,6 +122,8 @@ def _attention_metrics(attention: list[int]) -> tuple[float, float, float]:
 
 def analyze(image: Image.Image, attention: list[int] | None = None) -> dict:
     """Return metrics, tags, and a palette strategy for *image*."""
+    if image.mode != "RGB":
+        image = image.convert("RGB")
     if attention is None:
         attention = build_attention(image)
 
@@ -320,7 +324,7 @@ def analyze(image: Image.Image, attention: list[int] | None = None) -> dict:
     )
     add_tag(
         "sunset",
-        clamp((warm_fraction - 0.08) / 0.15) * clamp((sky_fraction - 0.25) / 0.35),
+        clamp((warm_fraction - 0.10) / 0.15) * clamp((sky_fraction - 0.25) / 0.35),
     )
     add_tag(
         "urban",

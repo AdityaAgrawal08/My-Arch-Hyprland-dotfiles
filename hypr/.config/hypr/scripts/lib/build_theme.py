@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import colorsys
 import json
+import math
 import sys
 import time
 from pathlib import Path
@@ -58,6 +59,15 @@ DEFAULT_ACCENTS = {
 
 def clamp(value: float, low: float = 0.0, high: float = 1.0) -> float:
     return max(low, min(high, value))
+
+
+def finite_float(value: object, default: float) -> float:
+    """Return *value* as a finite float, or *default* when it is not usable."""
+    try:
+        number = float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return default
+    return number if math.isfinite(number) else default
 
 
 def hex_to_rgb(value: str) -> tuple[int, int, int]:
@@ -185,10 +195,7 @@ def build(args: argparse.Namespace) -> dict:
 
     surface = role("surface", fallback["surface"])
     if seed:
-        try:
-            tint = float(strategy.get("surfaceTint", 0.0))
-        except (TypeError, ValueError):
-            tint = 0.0
+        tint = finite_float(strategy.get("surfaceTint", 0.0), 0.0)
         if tint > 0.0:
             try:
                 surface = align_hue(surface, seed, clamp(tint) * 0.5)
@@ -207,10 +214,7 @@ def build(args: argparse.Namespace) -> dict:
     card_high = mix(surface, "#ffffff", 0.095)
     hover = mix(surface, "#ffffff", 0.13)
     border = mix(outline_variant, surface, 0.52)
-    try:
-        border_strength = float(strategy.get("borderContrast", 0.80))
-    except (TypeError, ValueError):
-        border_strength = 0.80
+    border_strength = finite_float(strategy.get("borderContrast", 0.80), 0.80)
     border = ensure_contrast(
         border,
         surface,
@@ -291,9 +295,11 @@ def build(args: argparse.Namespace) -> dict:
         **ansi_flat,
     }
     if scene:
+        mode = scene.get("mode", "heuristic")
         theme["scene"] = {
-            "version": int(scene.get("version", 1)),
-            "confidence": scene.get("confidence", 0),
+            "mode": mode if isinstance(mode, str) else "heuristic",
+            "version": int(finite_float(scene.get("version", 1), 1)),
+            "confidence": finite_float(scene.get("confidence", 0), 0),
             "degraded": bool(scene.get("degraded", False)),
             "tags": scene.get("tags", []),
             "strategy": strategy,

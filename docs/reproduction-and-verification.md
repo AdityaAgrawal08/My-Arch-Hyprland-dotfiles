@@ -257,15 +257,18 @@ Expected:
 Scene regression:
 
 ```bash
-AUTOTHEME_SCENE=off AUTOTHEME_FORCE=1 \
-  ~/.config/hypr/scripts/wallpaper_switch.sh regenerate
+AUTOTHEME_SCENE=off \
+  ~/.config/hypr/scripts/wallpaper_switch.sh apply <wallpaper-file> none
 jq '{scene, seed}' ~/.cache/autotheme/theme.json
-~/.config/hypr/scripts/wallpaper_switch.sh regenerate
+AUTOTHEME_SCENE=auto \
+  ~/.config/hypr/scripts/wallpaper_switch.sh apply <wallpaper-file> none
 ```
 
 Expected: the off run has no scene/seed and uses the original Matugen
-invocation; the second run restores the scene theme. The scene layer adds
-roughly 20–40 ms of CPU and no measurable peak RSS on the reference wallpaper.
+invocation; the auto run restores the scene theme. The mode switch invalidates
+the cached theme even when the wallpaper path and mtime are unchanged. The
+scene layer adds roughly 20–40 ms of CPU and no measurable peak RSS on the
+reference wallpaper.
 
 Switch test:
 

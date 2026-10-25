@@ -269,6 +269,7 @@ Sampling:
 - `theme.json.mtime == stat -c %Y file`
 - When `AUTOTHEME_SCENE` is not `off`: `theme.json.scene.version ==
   SCENE_VERSION`
+- When `AUTOTHEME_SCENE=off`: `theme.json` has no `scene` block
 
 If they match and `AUTOTHEME_FORCE != 1`, palette generation is skipped. The
 wallpaper is still repainted and the generated surfaces are still re-rendered
@@ -304,7 +305,7 @@ and reapplied. An in-place file edit that preserves mtime is not detected.
     "bright_magenta": "#d3acd3"
   },
   "scene": {
-    "version": 1,
+    "version": 3,
     "confidence": 1.0,
     "degraded": false,
     "tags": [
@@ -381,8 +382,9 @@ in [scene-aware-theming.md](scene-aware-theming.md).
     - Normal colors clamp to lightness `[0.55, 0.78]` and saturation
       `[0.28, 0.86]`, scaled by the strategy’s `ansiSaturation`.
     - Bright colors use `lightness + 0.10`, capped at 0.86.
-13. Grayscale when `total_weight <= 0.05`, no clusters, or the scene’s
-    `chromaFraction < 0.02`.
+13. Grayscale when `total_weight <= 0.05` or there are no clusters.
+    - `chromaFraction` is diagnostic only. A small vivid subject in an
+      otherwise monochrome image still produces an accent (selective colour).
     - Accent `#d8d8d8`, soft accent `#b8b8b8`.
     - ANSI uses low-saturation canonical hues: normal lightness 0.64 /
       saturation 0.22; bright 0.76 / 0.18.
@@ -542,7 +544,8 @@ image instead of the seed.
   "ansi_red": "#c18b8b",
   "...": "...",
   "scene": {
-    "version": 1,
+    "mode": "heuristic",
+    "version": 3,
     "confidence": 1.0,
     "degraded": false,
     "tags": [{ "name": "sky-water", "confidence": 1.0 }],
@@ -554,8 +557,9 @@ image instead of the seed.
 
 Values are illustrative. The same document is written to
 `~/.cache/autotheme/theme.json` and `~/.cache/autotheme.json`. The `scene`
-block is omitted when `AUTOTHEME_SCENE=off`; `theme_is_current` then skips the
-scene-version check.
+block is omitted when `AUTOTHEME_SCENE=off`; `theme_is_current` then requires
+the block to be absent, so switching between `off` and `auto` invalidates the
+cache.
 
 ## Rendering
 
@@ -837,16 +841,25 @@ thumbnail is missing. `ensure_thumbs` does not delete orphaned thumbnails.
 
 If `scene.py` raises an exception, `vibrant.py` logs
 `scene analysis failed` and continues with the unweighted statistical palette.
-`accents.json` then has no `scene` or `seed` key, and the shell keeps the
-original Matugen invocation (`$sample`, `scheme-tonal-spot`). Scene failure is
-never fatal.
+`accents.json` then carries a scene marker with `degraded: true`, an empty tag
+list, and no `seed`; the shell keeps the original Matugen invocation
+(`$sample`, `scheme-tonal-spot`). The marker keeps the scene version valid, so
+the same image is not re-analysed on every restore. Scene failure is never
+fatal.
+
+If `scene.py` is missing, the shell disables scene mode before calling
+`vibrant.py`; `doctor` reports `scene.py : missing`. If the module exists but
+cannot be imported, `vibrant.py` logs `scene module unavailable` and falls back
+the same way.
 
 If the seed image is missing or Matugen rejects it, the shell retries once with
 the original wallpaper and the same scheme. If that fails, the static fallback
 is used.
 
-If `theme.json` has no `scene.version` or a version lower than `SCENE_VERSION`,
-`theme_is_current` treats the cached theme as stale and regenerates it.
+If `theme.json` has no `scene.version` or its version does not equal
+`SCENE_VERSION`, `theme_is_current` treats the cached theme as stale and
+regenerates it. With `AUTOTHEME_SCENE=off`, a theme that still has a `scene`
+block is also treated as stale.
 
 ### Vibrant/Pillow failure
 
@@ -976,16 +989,19 @@ Expected:
 - Border gradient matches the theme accent.
 - Dunst drop-in exists.
 
-Test the scene regression:
+Test the scene regression and the mode-switch cache:
 
 ```bash
-AUTOTHEME_SCENE=off AUTOTHEME_FORCE=1 \
-  ~/.config/hypr/scripts/wallpaper_switch.sh regenerate
+AUTOTHEME_SCENE=off \
+  ~/.config/hypr/scripts/wallpaper_switch.sh apply <wallpaper-file> none
 jq '{scene, seed}' ~/.cache/autotheme/theme.json
+AUTOTHEME_SCENE=auto \
+  ~/.config/hypr/scripts/wallpaper_switch.sh apply <wallpaper-file> none
 ```
 
-Expected: both are `null`/absent, and the original Matugen invocation is used.
-Run `regenerate` again with the default scene mode to restore the scene theme.
+Expected: the off run has no scene/seed, uses the original Matugen invocation,
+and regenerates even with the same wallpaper. The auto run restores the scene
+theme. `theme_is_current` treats a theme with the wrong scene mode as stale.
 
 Test fallback:
 
@@ -1007,8 +1023,9 @@ Expected: fallback surface `#121212`, complete theme.
 - Thumbnail cache is stored inside the repository and Stow does not ignore it.
 - `AUTOTHEME_MATUGEN=always` behaves like `auto`; only `never` disables
   Matugen.
-- `theme_is_current` uses path, mtime, and the scene version. It does not hash
-  file contents, so an in-place edit that preserves mtime is not detected.
+- `theme_is_current` uses path, mtime, the scene version, and whether scene
+  mode is off. It does not hash file contents, so an in-place edit that
+  preserves mtime is not detected.
 - Scene analysis is heuristic, not semantic. It has no object masks and no
   vision-language model.
 - `skinFraction` is recorded for diagnostics but is not used; it

@@ -21,7 +21,18 @@ RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 
 # Must match scene.VERSION.  Bump both when the strategy changes so cached
 # themes are rebuilt instead of silently keeping an old policy.
-SCENE_VERSION=1
+SCENE_VERSION=3
+
+scene_mode_normalized() {
+    case "${AUTOTHEME_SCENE:-auto}" in
+        off|heuristic|auto)
+            printf '%s\n' "${AUTOTHEME_SCENE:-auto}"
+            ;;
+        *)
+            printf 'auto\n'
+            ;;
+    esac
+}
 
 WALLPAPER_DIR="$(realpath -m -- "${WALLPAPER_DIR:-$SCRIPT_DIR/../themes/wallpapers/assets}")"
 THUMBS_DIR="$(realpath -m -- "${THUMBS_DIR:-$SCRIPT_DIR/../themes/wallpapers/thumbs}")"
@@ -393,8 +404,13 @@ theme_is_current() {
     mtime="$(stat_mtime "$file")"
     jq -e --arg file "$file" --argjson mtime "$mtime" \
         '.wallpaper == $file and .mtime == $mtime' "$THEME_JSON" >/dev/null 2>&1 || return 1
-    scene_mode="${AUTOTHEME_SCENE:-auto}"
-    if [[ "$scene_mode" != off ]]; then
+    scene_mode="$(scene_mode_normalized)"
+    if [[ "$scene_mode" != off && ! -f "$SCRIPT_DIR/lib/scene.py" ]]; then
+        scene_mode=off
+    fi
+    if [[ "$scene_mode" == off ]]; then
+        jq -e 'has("scene") | not' "$THEME_JSON" >/dev/null 2>&1 || return 1
+    else
         jq -e --argjson version "$SCENE_VERSION" \
             '.scene.version == $version' "$THEME_JSON" >/dev/null 2>&1 || return 1
     fi
@@ -403,8 +419,17 @@ theme_is_current() {
 
 generate_theme() {
     local file="$1" sample="$2" mtime grayscale=false built=0 fallback mode
-    local scene_mode="${AUTOTHEME_SCENE:-auto}"
+    local raw_scene_mode="${AUTOTHEME_SCENE:-auto}"
+    local scene_mode
     local matugen_source scheme contrast lightness seed matugen_ok=0
+    scene_mode="$(scene_mode_normalized)"
+    if [[ "$raw_scene_mode" != "$scene_mode" ]]; then
+        warn "unknown AUTOTHEME_SCENE=$raw_scene_mode; using $scene_mode"
+    fi
+    if [[ "$scene_mode" != off && ! -f "$SCRIPT_DIR/lib/scene.py" ]]; then
+        warn "scene.py is missing; disabling scene analysis"
+        scene_mode="off"
+    fi
     mtime="$(stat_mtime "$file")"
     rm -f "$ROLES_JSON" "$SEED_PNG"
 
@@ -436,6 +461,8 @@ generate_theme() {
             matugen_source="$SEED_PNG"
         fi
     fi
+    [[ "$contrast" =~ ^-?[0-9]+([.][0-9]+)?$ ]] || contrast="0"
+    [[ "$lightness" =~ ^-?[0-9]+([.][0-9]+)?$ ]] || lightness="0"
     case "$scheme" in
         scheme-content|scheme-expressive|scheme-fidelity|scheme-fruit-salad|\
         scheme-monochrome|scheme-neutral|scheme-rainbow|scheme-tonal-spot|\
@@ -614,7 +641,8 @@ doctor() {
     printf '  backend       : %s\n' "$backend"
     printf '  theme.json    : %s\n' "$([[ -f "$THEME_JSON" ]] && echo present || echo missing)"
     printf '  wallpaper     : %s\n' "$(default_wallpaper || echo missing)"
-    printf '  scene mode    : %s\n' "${AUTOTHEME_SCENE:-auto}"
+    printf '  scene mode    : %s\n' "$(scene_mode_normalized)"
+    printf '  scene.py      : %s\n' "$([[ -f "$SCRIPT_DIR/lib/scene.py" ]] && echo present || echo missing)"
     for command in matugen awww awww-daemon hyprpaper hyprctl jq python3 kitten dunstctl waybar wofi magick ffmpeg; do
         if command -v "$command" >/dev/null 2>&1; then
             printf '  %-13s : %s\n' "$command" "$(command -v "$command")"

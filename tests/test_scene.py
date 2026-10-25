@@ -11,6 +11,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from PIL import Image, ImageDraw
 
@@ -54,6 +55,13 @@ def landscape_image() -> Image.Image:
     draw.rectangle((0, int(size * 0.60), size, size), fill=(40, 110, 40))
     draw.rectangle((110, 140, 146, 176), fill=(170, 40, 35))
     draw.polygon([(100, 140), (156, 140), (128, 120)], fill=(90, 30, 25))
+    return image
+
+
+def monochrome_with_red_subject() -> Image.Image:
+    image = gradient(256, (20, 20, 20), (210, 210, 210))
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((112, 112, 144, 144), fill=(220, 30, 30))
     return image
 
 
@@ -176,6 +184,25 @@ class SceneTests(unittest.TestCase):
         self.assertIn("monochrome", tags)
         self.assertEqual(result["scene"]["strategy"]["scheme"], "scheme-monochrome")
 
+    def test_small_colour_subject_survives_a_monochrome_scene(self) -> None:
+        image = monochrome_with_red_subject()
+        result = vibrant.extract_image(image, scene_mode="heuristic")
+        self.assertFalse(result["grayscale"])
+        self.assertIn("seed", result)
+        hue = hue_of(result["accent"])
+        self.assertTrue(hue < 20.0 or hue > 340.0, hue)
+
+    def test_scene_failure_emits_a_degraded_marker(self) -> None:
+        image = sky_subject_image()
+        with mock.patch.object(
+            vibrant, "analyze_scene", side_effect=RuntimeError("boom")
+        ):
+            result = vibrant.extract_image(image, scene_mode="heuristic")
+        self.assertTrue(result["scene"]["degraded"])
+        self.assertEqual(result["scene"]["mode"], "degraded")
+        self.assertEqual(result["scene"]["version"], scene.VERSION)
+        self.assertNotIn("seed", result)
+
     def test_low_key_image_darkens_the_strategy(self) -> None:
         image = Image.new("RGB", (256, 256), (10, 16, 30))
         draw = ImageDraw.Draw(image)
@@ -225,6 +252,24 @@ class SceneTests(unittest.TestCase):
         self.assertEqual(len(attention), scene.ATTENTION_SIZE**2)
         self.assertTrue(all(value == 128 for value in attention))
 
+    def test_non_rgb_images_are_accepted(self) -> None:
+        attention = scene.build_attention(Image.new("L", (64, 64), 128))
+        self.assertEqual(len(attention), scene.ATTENTION_SIZE**2)
+        result = vibrant.extract_image(
+            Image.new("L", (128, 128), 128), scene_mode="heuristic"
+        )
+        self.assertTrue(result["grayscale"])
+
+    def test_loading_applies_exif_orientation(self) -> None:
+        image = Image.new("RGB", (64, 32), (40, 80, 120))
+        exif = Image.Exif()
+        exif[274] = 6
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "rotated.jpg"
+            image.save(path, exif=exif.tobytes())
+            loaded = vibrant.load_image(path)
+        self.assertEqual(loaded.size, (32, 64))
+
 
 class ThemeGuardrailTests(unittest.TestCase):
     def test_scene_seed_aligns_surface_and_enforces_contrast(self) -> None:
@@ -243,7 +288,7 @@ class ThemeGuardrailTests(unittest.TestCase):
             "accent_soft": "#203040",
             "ansi": {},
             "scene": {
-                "version": 1,
+                "version": 3,
                 "confidence": 1.0,
                 "degraded": False,
                 "tags": [{"name": "warm", "confidence": 1.0}],
@@ -283,6 +328,97 @@ class ThemeGuardrailTests(unittest.TestCase):
         self.assertGreaterEqual(
             build_theme.contrast(theme["accentSoft"], theme["bg"]), 4.0
         )
+
+    def test_degraded_scene_marker_builds_a_valid_theme(self) -> None:
+        roles = {
+            "surface": "#101010",
+            "on_surface": "#e0e0e0",
+            "on_surface_variant": "#a0a0a0",
+            "outline": "#808080",
+            "outline_variant": "#303030",
+            "error": "#ff5555",
+        }
+        accents = {
+            "grayscale": False,
+            "accent": "#d17e61",
+            "accent_soft": "#5c96c1",
+            "ansi": {},
+            "scene": {
+                "version": 3,
+                "mode": "degraded",
+                "confidence": 0.0,
+                "degraded": True,
+                "tags": [],
+                "metrics": {},
+                "strategy": {},
+            },
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            roles_path = Path(directory) / "roles.json"
+            accents_path = Path(directory) / "accents.json"
+            roles_path.write_text(json.dumps(roles), encoding="utf-8")
+            accents_path.write_text(json.dumps(accents), encoding="utf-8")
+            args = argparse.Namespace(
+                roles=roles_path,
+                accents=accents_path,
+                wallpaper=Path("/tmp/wallpaper.jpg"),
+                mtime=1,
+                fallback="dark",
+            )
+            theme = build_theme.build(args)
+
+        self.assertEqual(theme["scene"]["mode"], "degraded")
+        self.assertTrue(theme["scene"]["degraded"])
+        self.assertIn("bg", theme)
+        self.assertIn("accent", theme)
+        self.assertIn("fg", theme)
+
+    def test_invalid_scene_metadata_does_not_break_theme(self) -> None:
+        roles = {
+            "surface": "#101010",
+            "on_surface": "#e0e0e0",
+            "on_surface_variant": "#a0a0a0",
+            "outline": "#808080",
+            "outline_variant": "#303030",
+            "error": "#ff5555",
+        }
+        accents = {
+            "grayscale": False,
+            "seed": "#cc7050",
+            "accent": "#d17e61",
+            "accent_soft": "#5c96c1",
+            "ansi": {},
+            "scene": {
+                "version": "not-a-number",
+                "confidence": "nan",
+                "degraded": False,
+                "tags": [],
+                "strategy": {
+                    "scheme": "scheme-fidelity",
+                    "surfaceTint": "nan",
+                    "borderContrast": "inf",
+                },
+            },
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            roles_path = Path(directory) / "roles.json"
+            accents_path = Path(directory) / "accents.json"
+            roles_path.write_text(json.dumps(roles), encoding="utf-8")
+            accents_path.write_text(json.dumps(accents), encoding="utf-8")
+            args = argparse.Namespace(
+                roles=roles_path,
+                accents=accents_path,
+                wallpaper=Path("/tmp/wallpaper.jpg"),
+                mtime=1,
+                fallback="dark",
+            )
+            theme = build_theme.build(args)
+
+        self.assertEqual(theme["scene"]["version"], 1)
+        self.assertEqual(theme["scene"]["confidence"], 0.0)
+        self.assertIn("bg", theme)
+        self.assertIn("accent", theme)
+        self.assertIn("fg", theme)
 
 
 if __name__ == "__main__":

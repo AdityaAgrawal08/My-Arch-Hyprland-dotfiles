@@ -19,24 +19,32 @@ from __future__ import annotations
 import argparse
 import colorsys
 import json
+import math
 import sys
 from pathlib import Path
 
 try:
-    from PIL import Image
+    from PIL import Image, ImageOps
 except ImportError:  # pragma: no cover - handled by the shell wrapper
     Image = None
+    ImageOps = None
 
 try:
     from scene import (
         ATTENTION_SIZE,
+        VERSION as SCENE_VERSION,
         analyze as analyze_scene,
         build_attention,
         column_weights,
         row_weights,
     )
-except ImportError:  # pragma: no cover - scene.py ships with this module
+except Exception as error:  # pragma: no cover - scene.py ships with this module
+    print(
+        f"vibrant: scene module unavailable ({error}); using statistical palette",
+        file=sys.stderr,
+    )
     ATTENTION_SIZE = 64
+    SCENE_VERSION = 0
     analyze_scene = None
     build_attention = None
     column_weights = None
@@ -161,7 +169,14 @@ def load_image(path: Path) -> Image.Image:
         except Exception:
             pass
         image = source.convert("RGB")
+        # Shrink before applying EXIF orientation: exif_transpose returns a
+        # copy, and copying a full-resolution 4K frame would double peak RSS.
         image.thumbnail((256, 256), Image.Resampling.LANCZOS)
+        if ImageOps is not None:
+            try:
+                image = ImageOps.exif_transpose(image)
+            except Exception:
+                pass
     return image
 
 
@@ -292,8 +307,8 @@ def choose_primary_cluster(
 
     A large blue sky can still lead the histogram even after per-pixel
     attention weighting.  When the leading cluster is sky-like, prefer a
-    substantial green family for nature scenes or a substantial warm family
-    for sunsets.  If the image is overwhelmingly cool and has no meaningful
+    substantial warm family for sunsets, then a substantial green family for
+    nature scenes.  If the image is overwhelmingly cool and has no meaningful
     green or warm region, keep the blue cluster so a genuinely blue wallpaper
     stays blue.
     """
@@ -311,13 +326,6 @@ def choose_primary_cluster(
         return dominant
 
     minimum = total * 0.10
-    green = [cluster for cluster in clusters if 70.0 <= cluster["hue"] <= 165.0]
-    if (
-        green_fraction >= 0.20
-        and sum(cluster["weight"] for cluster in green) >= minimum
-    ):
-        return max(green, key=lambda cluster: cluster["weight"])
-
     warm = [
         cluster
         for cluster in clusters
@@ -325,6 +333,13 @@ def choose_primary_cluster(
     ]
     if warm_fraction >= 0.10 and sum(cluster["weight"] for cluster in warm) >= minimum:
         return max(warm, key=lambda cluster: cluster["weight"])
+
+    green = [cluster for cluster in clusters if 70.0 <= cluster["hue"] <= 165.0]
+    if (
+        green_fraction >= 0.20
+        and sum(cluster["weight"] for cluster in green) >= minimum
+    ):
+        return max(green, key=lambda cluster: cluster["weight"])
 
     alternatives = [
         cluster
@@ -400,6 +415,8 @@ def extract_image(
     seed_out: Path | None = None,
     source: str = "",
 ) -> dict:
+    if image.mode != "RGB":
+        image = image.convert("RGB")
     if scene_mode == "auto":
         scene_mode = "heuristic"
 
@@ -434,13 +451,11 @@ def extract_image(
         ansi_saturation = float(strategy.get("ansiSaturation", 1.0))
     except (TypeError, ValueError):
         ansi_saturation = 1.0
+    if not math.isfinite(ansi_saturation):
+        ansi_saturation = 1.0
 
     minimum_weight = max(total_weight * MIN_CLUSTER_FRACTION, 0.05)
     grayscale = total_weight <= 0.05 or not clusters
-    if scene is not None:
-        chroma_fraction = float(scene["metrics"].get("chromaFraction", 1.0))
-        if chroma_fraction < 0.02:
-            grayscale = True
 
     if grayscale:
         primary = None
@@ -523,6 +538,18 @@ def extract_image(
         if seed_rgb is not None:
             result["seed"] = rgb_to_hex(seed_rgb)
         result["scene"] = scene
+    elif scene_mode != "off" and SCENE_VERSION:
+        # Keep a versioned marker so theme_is_current does not regenerate the
+        # same failed image on every restore.
+        result["scene"] = {
+            "version": SCENE_VERSION,
+            "mode": "degraded",
+            "confidence": 0.0,
+            "degraded": True,
+            "tags": [],
+            "metrics": {},
+            "strategy": {},
+        }
     return result
 
 
