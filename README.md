@@ -32,6 +32,7 @@ Our dotfiles utilize an intelligent, profile-based provisioning system. Rather t
 ├── fish/                       # Fish shell configs & environment wrappers
 ├── hypr/                       # Hyprland, Hypridle, and Hyprlock suites
 ├── lid-sounds/                 # Hardware state listening hook scripts
+├── local/                      # Document/PDF toolkit Stow package
 ├── nvim/                       # Extensible Lua-based Neovim development environment
 ├── packages/                   # Declarative package lists (pacman/aur) divided by profile
 │   ├── pacman/
@@ -41,7 +42,7 @@ Our dotfiles utilize an intelligent, profile-based provisioning system. Rather t
 │   │   ├── detect.sh           # Hardware and virtualization sensing
 │   │   ├── reconcile.sh        # Profile manifest compiler
 │   │   └── apply.sh            # Dynamic Stow-based link applicator
-│   └── bootstrap-tools.sh      # Python virtual environment orchestrator
+│   └── bootstrap-tools.sh      # Document/PDF toolkit venv setup
 ├── starship/                   # Starship shell prompt configuration
 ├── system/                     # Repository declarations
 │   └── manifest.yaml           # Active deployment profile definitions
@@ -150,11 +151,20 @@ A custom background listener maps physical system triggers:
 *   **Lid Closed:** Locks the active session safely utilizing `hyprlock`.
 *   **Lid Opened:** Authenticates, plays an initialization audio sound effect (`open.wav`) utilizing `mpv` backgrounds, and wakes displays dynamically.
 
-### 🗃️ Office & PDF Utilities
-Bundled under `.local/bin` are custom standalone scripts backed by modular Python virtual environments managed inside `.local/share/`:
-*   `docx2pdf`: Rapid command-line `.docx` to PDF document formatting.
-*   `pdf2docx`: Precise layout-preserving PDF to Microsoft Word converter.
-*   `pdfmerge`: High-fidelity PDF report compilation utility.
+### 🗃️ Document & PDF Toolkit
+The `local` Stow package ships a self-contained document/PDF suite. Wrappers are
+linked into `~/.local/bin`; the implementation and Python venv live under
+`~/.local/share/doctools/`, with runtime state in `~/.local/state/doctools/`.
+
+*   `docs --help`: structured manual listing every command and its meaning.
+*   `pdfmerge`: merges PDFs and writes `final.pdf` (no TOC), `toc.pdf` (TOC only), and `final_toc.pdf` (TOC + content).
+*   `docx2pdf` / `doc2pdf`: Office, Markdown, HTML, text and images to PDF.
+*   `pdf2docx` / `pdf2doc` / `pdf2odt`: PDF to DOCX, DOC or ODT.
+*   `pdfsplit`, `pdfselect`, `pdfcompress`, `pdf2img`, `img2pdf`, `pdf2txt`, `pdf2html`, `pdfinfo`, `pdfrotate`, `pdfwatermark`, `pdfencrypt`, `pdfdecrypt`, `pdfextractimages`, `pdfocr`.
+*   `md2pdf` / `md2docx` / `md2html`: Markdown to PDF, DOCX or HTML.
+
+See [`docs/document-and-file-utilities.md`](docs/document-and-file-utilities.md)
+for the full command reference and verification steps.
 
 ### 🎛️ System Dashboard Widget
 A high-performance, Waybar-integrated settings panel (anchored directly under your cursor below the status bar). 

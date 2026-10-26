@@ -308,6 +308,15 @@ PACMAN_APPS=(
   kwallet
 )
 
+# Document/PDF toolkit backends.  Python packages are installed into the
+# repo-local venv by install_python_tools(); these are the system backends.
+PACMAN_DOCS=(
+  poppler
+  ghostscript
+  qpdf
+  python-weasyprint
+)
+
 # Optional extras: skip with SKIP_OPTIONAL=1 if you want a lean install.
 PACMAN_OPTIONAL=(
   docker
@@ -609,14 +618,12 @@ stow_package() {
         --ignore='user-dirs\.dirs$'
       )
       ;;
-    .local)
-      extra_ignores+=(
-        --ignore='venv$'
-      )
-      ;;
     local)
       extra_ignores+=(
         --ignore='venv$'
+        --ignore='^_run$'
+        --ignore='__pycache__'
+        --ignore='\.pyc$'
       )
       ;;
   esac
@@ -681,14 +688,17 @@ stow_all() {
 }
 
 install_local_bin_tools() {
-  local name src dest
+  local src_dir="$DOTFILES_DIR/local/.local/bin"
+  local src name dest
   local bin="$HOME/.local/bin"
 
+  [[ -d "$src_dir" ]] || return 0
   mkdir -p "$bin"
-  for name in docx2pdf pdf2docx; do
-    src="$DOTFILES_DIR/.local/bin/$name"
+  for src in "$src_dir"/*; do
+    name="$(basename -- "$src")"
+    [[ "$name" == "_run" ]] && continue
+    [[ -e "$src" || -L "$src" ]] || continue
     dest="$bin/$name"
-    [[ -f "$src" ]] || continue
 
     if [[ -L "$dest" && "$(readlink -f "$dest")" == "$(readlink -f "$src")" ]]; then
       continue
@@ -892,13 +902,13 @@ EOF
 # ---------------------------------------------------------------------------
 
 install_python_tools() {
-  local venv="$HOME/.local/share/pdfmerge/venv"
+  local venv="$HOME/.local/share/doctools/venv"
 
-  say "Installing Python PDF tools into $venv"
-  mkdir -p "$HOME/.local/share/pdfmerge"
+  say "Installing document/PDF Python tools into $venv"
+  mkdir -p "$HOME/.local/share/doctools"
 
   if ! command -v python3 >/dev/null 2>&1; then
-    warn "python3 is missing; skipping Python PDF tools"
+    warn "python3 is missing; skipping Python document tools"
     note_failure "python:missing"
     return 0
   fi
@@ -908,9 +918,52 @@ install_python_tools() {
   fi
 
   "$venv/bin/python" -m pip install --disable-pip-version-check --upgrade pip >/dev/null 2>&1 || true
-  if ! "$venv/bin/pip" install --disable-pip-version-check pypdf reportlab pdf2docx; then
-    warn "Could not install one or more Python PDF packages"
-    note_failure "python:pdf-tools"
+  if ! "$venv/bin/python" -m pip install \
+      --disable-pip-version-check \
+      'pypdf>=5' \
+      'reportlab>=4' \
+      'pdf2docx>=0.5.13' \
+      'img2pdf>=0.5' \
+      'weasyprint>=62' \
+      'markdown>=3.5' \
+      'python-docx>=1.1' \
+      'pillow>=10' \
+      'cryptography>=3.1'; then
+    warn "Could not install one or more Python document packages"
+    note_failure "python:doc-tools"
+  fi
+
+  if ! "$venv/bin/python" - <<'PY'
+import importlib
+import logging
+import warnings
+
+logging.disable(logging.INFO)
+warnings.filterwarnings("ignore", message="The `fitz` API is deprecated.*")
+
+checks = {
+    "pypdf": "pypdf",
+    "reportlab": "reportlab",
+    "pdf2docx": "pdf2docx",
+    "img2pdf": "img2pdf",
+    "weasyprint": "weasyprint",
+    "markdown": "markdown",
+    "docx": "docx",
+    "PIL": "PIL",
+    "cryptography": "cryptography",
+}
+failed = []
+for label, module in checks.items():
+    try:
+        importlib.import_module(module)
+    except Exception as exc:
+        failed.append(f"{label}: {exc}")
+if failed:
+    print("\n".join(failed))
+    raise SystemExit(1)
+PY
+  then
+    note_failure "python:doc-tools-verify"
   fi
 }
 
@@ -1088,6 +1141,7 @@ main() {
   dedup_array PACMAN_HYPR
   dedup_array PACMAN_DEV
   dedup_array PACMAN_APPS
+  dedup_array PACMAN_DOCS
   dedup_array PACMAN_OPTIONAL
   dedup_array PACMAN_XORG
   dedup_array AUR_REQUIRED
@@ -1109,6 +1163,7 @@ main() {
   install_pacman_group "Hyprland desktop packages" "${PACMAN_HYPR[@]}"
   install_pacman_group "development tools" "${PACMAN_DEV[@]}"
   install_pacman_group "applications" "${PACMAN_APPS[@]}"
+  install_pacman_group "document/PDF tools" "${PACMAN_DOCS[@]}"
 
   if [[ ${SKIP_OPTIONAL:-0} == 1 ]]; then
     say "Skipping optional packages (SKIP_OPTIONAL=1)"
@@ -1134,7 +1189,6 @@ main() {
   else
     stow_all
     cleanup_runtime_links
-    install_local_bin_tools
     install_trash_system
     configure_shells
 
@@ -1145,6 +1199,7 @@ main() {
     fi
   fi
 
+  install_local_bin_tools
   install_python_tools
   install_xdg_user_dirs
 
@@ -1175,6 +1230,7 @@ main() {
     fish nvim git stow sqlite3
     notify-send playerctl brightnessctl wpctl grim slurp zathura imv mpv
     starship jq python3 gcc pkg-config magick ffmpeg ffprobe
+    doc docs pdfmerge docx2pdf pdf2docx pdftotext pdftoppm gs
   )
   local cmd missing=()
 
@@ -1185,6 +1241,14 @@ main() {
   if ((${#missing[@]})); then
     warn "These critical commands are still missing: ${missing[*]}"
     warn "Review the package errors above and rerun ./install.sh"
+  fi
+
+  if [[ -x "$HOME/.local/bin/doc" ]]; then
+    say "Checking document/PDF toolkit backends"
+    if ! "$HOME/.local/bin/doc" doctor; then
+      warn "doc-tools reported missing required backends; run:"
+      warn "  $HOME/.local/bin/doc doctor"
+    fi
   fi
 
   echo

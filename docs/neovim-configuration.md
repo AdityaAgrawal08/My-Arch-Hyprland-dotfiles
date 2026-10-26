@@ -405,10 +405,12 @@ Preview/export:
 
 - `markdown-preview.nvim`: build with `cd app && ./install.sh`; commands
   `MarkdownPreviewToggle`, `MarkdownPreview`, `MarkdownPreviewStop`.
-- Pandoc export:
-  `pandoc <infile> -o <outfile>.<pdf|html|docx>`.
-  - PDF requires a LaTeX engine.
+- Document export prefers the installed `docs` toolkit:
+  `md2pdf`, `md2html`, or `md2docx` with `-o <outfile>`.
   - `:ExportPDF`, `:ExportHTML`, `:ExportDOCX`, `:ExportMenu`.
+  - Without the toolkit, it falls back to
+    `pandoc <infile> -o <outfile>.<pdf|html|docx>`.
+  - The toolkit's PDF path uses WeasyPrint, so it does not require LaTeX.
 
 Other document plugins:
 
@@ -440,7 +442,7 @@ Core:
 - `zls`/`zig`
 - `texlab`/`latexmk`/`latexindent`/TeX distribution
 - `imagemagick` (`mogrify`)
-- `pandoc`; LaTeX engine for PDF
+- `docs` toolkit (preferred) or `pandoc`; LaTeX only for the pandoc fallback PDF path
 - Kitty graphics protocol for `image.nvim`
 
 ## Reproduction
@@ -482,7 +484,9 @@ Inside Neovim:
 - Markdown: wrap/spell enabled; `<leader>mt`, `<leader>mf` work.
 - `:PasteImage` requires clipboard image support.
 - `:MarkdownPreviewToggle` requires the markdown-preview build.
-- `:ExportPDF` requires LaTeX; HTML/DOCX require Pandoc.
+- `:ExportPDF` uses the `docs` toolkit (WeasyPrint) when installed; the
+  pandoc fallback still needs LaTeX. HTML/DOCX use `md2html`/`md2docx` or
+  Pandoc.
 
 ## Known limitations
 

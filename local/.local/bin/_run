@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# Shared launcher for every command in the doc-tools suite.
+#
+# Source code lives in the dotfiles Stow package (local/.local/share/doctools).
+# Installed runtime state and the Python venv live under $HOME:
+#   ~/.local/share/doctools/venv
+#   ~/.local/state/doctools/
+set -euo pipefail
+
+SELF="$(readlink -f -- "${BASH_SOURCE[0]}")"
+CODE_ROOT="$(cd -- "$(dirname -- "$SELF")/.." && pwd)"
+USER_HOME="$HOME"
+
+STATE_ROOT="${DOC_TOOLS_STATE:-${XDG_STATE_HOME:-$USER_HOME/.local/state}/doctools}"
+VENV="${DOC_TOOLS_VENV:-$USER_HOME/.local/share/doctools/venv}"
+
+CMD="$(basename -- "$0")"
+if [[ "$CMD" == "_run" ]]; then
+  if [[ $# -lt 1 ]]; then
+    echo "usage: _run <command> [args...]" >&2
+    exit 2
+  fi
+  CMD="$1"
+  shift
+fi
+
+for dir in \
+  "$STATE_ROOT/cache" \
+  "$STATE_ROOT/config" \
+  "$STATE_ROOT/data" \
+  "$STATE_ROOT/home" \
+  "$STATE_ROOT/pip-cache" \
+  "$STATE_ROOT/pycache" \
+  "$STATE_ROOT/runtime"; do
+  mkdir -p "$dir"
+done
+
+export DOC_TOOLS_ROOT="$STATE_ROOT"
+export PYTHONPATH="$CODE_ROOT/share/doctools${PYTHONPATH:+:$PYTHONPATH}"
+export PYTHONPYCACHEPREFIX="$STATE_ROOT/pycache"
+export PYTHONIOENCODING="utf-8"
+export HOME="$STATE_ROOT/home"
+export TMPDIR="$STATE_ROOT/runtime"
+export XDG_CACHE_HOME="$STATE_ROOT/cache"
+export XDG_CONFIG_HOME="$STATE_ROOT/config"
+export XDG_DATA_HOME="$STATE_ROOT/data"
+export PIP_CACHE_DIR="$STATE_ROOT/pip-cache"
+export PIP_DISABLE_PIP_VERSION_CHECK=1
+export LC_ALL="${LC_ALL:-C.UTF-8}"
+
+if [[ ! -x "$VENV/bin/python" ]]; then
+  cat >&2 <<EOF
+error: the doc-tools Python environment is missing.
+
+Run:
+  $CODE_ROOT/share/doctools/setup.sh
+
+Or rerun:
+  ./install.sh
+EOF
+  exit 2
+fi
+
+exec "$VENV/bin/python" -m doctools.cli "$CMD" "$@"

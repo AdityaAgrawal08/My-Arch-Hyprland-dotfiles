@@ -55,7 +55,7 @@ removed `system-dashboard`, a non-existent `hyprland.conf`, and the legacy
 | [trash-management-system.md](trash-management-system.md) | CAS trash architecture, SQLite schema, `safe-rm`, CLI, manifests, timers, installation, risks |
 | [neovim-configuration.md](neovim-configuration.md) | Core options/keymaps/autocommands, wallpaper-derived colorscheme, LSP, AutoImport, completion, document mode, plugins |
 | [opencode-agent-configuration.md](opencode-agent-configuration.md) | Provider, MCP servers, Omo-Slim presets, `AGENTS.md`, skills, secrets |
-| [document-and-file-utilities.md](document-and-file-utilities.md) | `docx2pdf`, `pdf2docx`, `pdfmerge`, `open.fish`, Zathura, XDG defaults |
+| [document-and-file-utilities.md](document-and-file-utilities.md) | `docs`/`doc` toolkit, `pdfmerge` three-output contract, conversions, PDF operations, `open.fish`, Zathura, XDG defaults |
 | [supporting-tools.md](supporting-tools.md) | Lid scripts, wallpaper generators, htop |
 | [reproduction-and-verification.md](reproduction-and-verification.md) | Clean-machine rebuild order, per-component verification, troubleshooting, hardcoded paths |
 
@@ -145,6 +145,8 @@ The documentation was prepared with the following checks:
 | Scene `scene` / `explain` commands | Exercised |
 | `AUTOTHEME_SCENE=off` regression | Pass |
 | Scene CPU/RSS budget | Pass |
+| Document/PDF toolkit integration (`tests/test_doc_tools.py`) | Pass; 25 tests |
+| `docs --help` manual and `docs doctor` | Exercised |
 | Neovim dynamic colorscheme loading | Pass |
 | Hyprlock visual override | Not exercised |
 | SDDM Maya deployment | Not implemented |

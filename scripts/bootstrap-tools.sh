@@ -1,14 +1,11 @@
 #!/usr/bin/env bash
-set -e
+# Bootstrap/refresh the document and PDF toolkit environment.
+#
+# This is a convenience wrapper for the same setup used by install.sh.  The
+# toolkit source is in local/.local/share/doctools; the venv lives in
+# ~/.local/share/doctools/venv and runtime state in ~/.local/state/doctools.
+set -euo pipefail
 
-# pdfmerge
-if [ ! -d "$HOME/.local/share/pdfmerge/venv" ]; then
-    python -m venv "$HOME/.local/share/pdfmerge/venv"
-    "$HOME/.local/share/pdfmerge/venv/bin/pip" install reportlab
-fi
+DOTFILES_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 
-# pdf2docx
-if [ ! -d "$HOME/.local/share/pdf2docx/venv" ]; then
-    python -m venv "$HOME/.local/share/pdf2docx/venv"
-    "$HOME/.local/share/pdf2docx/venv/bin/pip" install pdf2docx
-fi
+exec "$DOTFILES_DIR/local/.local/share/doctools/setup.sh"

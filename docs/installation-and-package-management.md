@@ -60,6 +60,7 @@ from the package files.
 | `PACMAN_HYPR` | Hyprland desktop and theming | `hyprland`, `hyprpaper`, `hypridle`, `hyprlock`, `hyprshot`, `hyprsunset`, `hyprpolkitagent`, `matugen`, `awww`, `python-pillow`, `waybar`, `wofi`, `kitty`, `thunar`, `dunst`, `grim`, `slurp`, `wl-clipboard`, `cliphist`, `imv`, `mpv`, `zathura*`, fonts |
 | `PACMAN_DEV` | Development toolchain | `neovim`, `fish`, `starship`, `python`, `nodejs`, `npm`, `go`, `rust`, `clang`, `cmake`, `jdk-openjdk`, `maven`, `ripgrep`, `fd`, `fzf`, `htop`, `7zip`, `tesseract` |
 | `PACMAN_APPS` | User applications | `firefox`, `chromium`, `libreoffice-fresh`, `vlc`, `gparted`, `imagemagick`, `ffmpeg`, `yt-dlp`, `opencode`, `gocryptfs`, `kwallet` |
+| `PACMAN_DOCS` | Document/PDF toolkit backends | `poppler`, `ghostscript`, `qpdf`, `python-weasyprint` |
 | `PACMAN_OPTIONAL` | Optional workloads | Docker, MariaDB, Valkey, Coturn, Cloudflared, security tools, OBS, Ollama, Tor Browser, `pandoc-cli` |
 | `PACMAN_XORG` | Xorg/XWayland compatibility | `xorg-server`, XWayland helpers, legacy X utilities |
 | `AUR_REQUIRED` | AUR essentials | `brave-bin`, `zen-browser-bin`, `visual-studio-code-bin`, `yay` |
@@ -125,7 +126,7 @@ Ignore patterns:
 | `hypr` | `__pycache__`, `*.pyc`, `*.backup`, `battery-notify` |
 | `trash` | `bin`, `scripts`, `systemd`, `config`, `install.sh`, `uninstall.sh`, `.gitignore`, `.stow-local-ignore`, `graphical-session.target.wants` |
 | `xdg` | `user-dirs.dirs` |
-| `.local`, `local` | `venv` |
+| `local` | `venv`, `_run`, `__pycache__`, `*.pyc` (the installed toolkit venv lives under `~/.local/share/doctools/venv`) |
 
 On conflict, the installer moves the existing target to
 `<target>.pre-dotfiles.<timestamp>[.N]`, then retries up to five times. It
@@ -136,8 +137,9 @@ Notes:
 
 - `hypr/.config/hypr/themes/wallpapers/thumbs/` is not Stow-ignored. It is
   gitignored but can be linked by a Stow run.
-- `local` is the active PDF-tool Stow package. `.local` is an older duplicate
-  and is not stowed.
+- `local` is the active Stow package for the document/PDF toolkit. It contains
+  `local/.local/bin/` (wrappers) and `local/.local/share/doctools/` (Python
+  implementation and setup script). The old `.local/` duplicate was removed.
 - `opencode`, `gtk-*`, `dunst`, `htop`, and `mimeapps.list` can remain real
   files/directories on an existing machine; `install.sh` backs them up, while
   plain `stow` aborts on conflicts.
@@ -146,14 +148,16 @@ Notes:
 
 ### Local binaries
 
-`install_local_bin_tools()` symlinks:
+`install_local_bin_tools()` iterates over every executable in
+`local/.local/bin/` (except `_run`) and symlinks it into `~/.local/bin`. This
+includes `docs`, `doc`, `pdfmerge`, `docx2pdf`, `pdf2docx`, and the rest of the
+toolkit. Existing files are backed up with the normal conflict mechanism.
 
-```text
-.local/bin/docx2pdf  -> ~/.local/bin/docx2pdf
-.local/bin/pdf2docx  -> ~/.local/bin/pdf2docx
-```
-
-`pdfmerge` is provided by the `local` Stow package.
+`pdfmerge` and all other toolkit commands are therefore available directly on
+`PATH` after installation. Run `docs --help` for the grouped command manual.
+The shared `_run` launcher resolves the source code from the Stow package and
+uses the venv at `~/.local/share/doctools/venv`; runtime state goes to
+`~/.local/state/doctools/`.
 
 ### Trash runtime
 
@@ -178,15 +182,25 @@ See [trash-management-system.md](trash-management-system.md).
 - If `zsh` exists, creates a minimal `~/.zshrc` with an OpenCode/local PATH
   line.
 
-### Python PDF tooling
+### Python document/PDF tooling
 
 `install_python_tools()` creates:
 
 ```text
-~/.local/share/pdfmerge/venv
+~/.local/share/doctools/venv
 ```
 
-and installs `pypdf`, `reportlab`, and `pdf2docx`.
+and installs:
+
+```text
+pypdf, reportlab, pdf2docx, img2pdf, weasyprint, markdown,
+python-docx, pillow, cryptography
+```
+
+It verifies every import afterward and records `python:doc-tools` or
+`python:doc-tools-verify` as an install failure if anything is missing.
+The `python-weasyprint` system package supplies the Pango/Cairo runtime needed
+by the venv's WeasyPrint.
 
 ### XDG user directories
 
@@ -274,8 +288,10 @@ existing real configuration file can abort the Stow step.
 
 ### `scripts/bootstrap-tools.sh`
 
-Creates separate venvs for `pdfmerge` and `pdf2docx`. This is older than
-`install.sh`’s single `pdfmerge` venv and is not called by it.
+A convenience wrapper around
+`local/.local/share/doctools/setup.sh`. It refreshes the toolkit venv and
+Python dependencies without running the full installer. `install.sh` calls the
+same setup logic directly through `install_python_tools()`.
 
 ## Reproduction
 
@@ -305,7 +321,7 @@ SKIP_STOW=1 ./install.sh
 
 ```bash
 cd ~/dotfiles
-stow --target="$HOME" --no-folding --restow \
+stow --target="$HOME" --no-folding --restow --ignore='venv$' --ignore='^_run$' \
   hypr waybar wofi kitty fish starship dunst gtk htop zathura \
   trash xdg local nvim opencode
 
@@ -323,10 +339,13 @@ hyprpolkitagent matugen awww awww-daemon waybar wofi kitty thunar dunst
 cliphist wl-copy nm-applet blueman-applet pavucontrol fish nvim git stow
 sqlite3 notify-send playerctl brightnessctl wpctl grim slurp zathura imv mpv
 starship jq python3 gcc pkg-config magick ffmpeg ffprobe
+doc docs pdfmerge docx2pdf pdf2docx pdftotext pdftoppm gs
 ```
 
-It also warns about missing `~/Downloads/open.wav`/`close.wav` and a missing
-LaTeX engine for Neovim PDF export.
+It also runs `doc doctor` after installation and warns if required toolkit
+backends are missing. It warns about missing `~/Downloads/open.wav`/`close.wav`
+and notes that Neovim's pandoc fallback for PDF export still needs a LaTeX
+engine; the preferred `docs` export path uses WeasyPrint and does not.
 
 ## Known limitations
 

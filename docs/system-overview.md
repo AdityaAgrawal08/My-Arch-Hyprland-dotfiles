@@ -77,7 +77,6 @@ targets aside before linking.
 
 ```text
 .
-├── .local/                  # Older duplicate of local PDF tools
 ├── dunst/                   # Dunst Stow package
 ├── docs/                    # Documentation
 ├── fish/                    # Fish Stow package
@@ -87,7 +86,7 @@ targets aside before linking.
 ├── install.sh               # Current installer
 ├── kitty/                   # Kitty Stow package
 ├── lid-sounds/              # Standalone lid helpers
-├── local/                   # Active Stow package for pdfmerge
+├── local/                   # Active Stow package for document/PDF tools
 ├── nvim/                    # Neovim Stow package
 ├── opencode/                # OpenCode Stow package
 ├── packages/                # Package lists
@@ -124,7 +123,7 @@ targets aside before linking.
         └── Autotheme
             wallpaper_switch.sh, wallpaper_picker.sh,
             scene.py, vibrant.py, build_theme.py, render.py,
-            templates/*; repo-root tests/test_scene.py
+            templates/*; repo-root tests/test_scene.py, tests/test_doc_tools.py
 ```
 
 ### Runtime flows
@@ -166,7 +165,8 @@ targets aside before linking.
 | `~/.cache/waybar/style.css` | `waybar-scale.py` | Scaled and themed Waybar CSS |
 | `hypr/.config/hypr/themes/wallpapers/thumbs/` | `ensure_thumb` | Thumbnail cache (ignored) |
 | `~/.config/systemd/user/trash-*.service.d/override.conf` | `install.sh` | User-specific trash ExecStart |
-| `~/.local/share/pdfmerge/venv/` | `install.sh` | Python PDF tooling |
+| `~/.local/share/doctools/venv/` | `install.sh` / `setup.sh` | Python document/PDF tooling |
+| `~/.local/state/doctools/` | `_run` launcher | Toolkit temp/cache/runtime state |
 
 ## Legacy and inactive components
 
@@ -177,7 +177,6 @@ The following items are present but must not be treated as active:
 - `hyprland.conf` — does not exist. The active file is `hyprland.lua`.
 - `scripts/core/*` — legacy installer pipeline, not called by `install.sh`.
 - `system/manifest.yaml`, `system/profiles/*.yaml` — legacy profile inputs.
-- `.local/` — older duplicate of `local/`; only `local/` is stowed.
 - SDDM Maya `theme.conf` — empty template; greeter uses defaults.
 - Trash runtime — repository code exists, but the reference deployment has no
   database/object store and disabled timers.

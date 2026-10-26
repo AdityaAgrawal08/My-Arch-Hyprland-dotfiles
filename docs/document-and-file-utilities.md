@@ -1,14 +1,20 @@
 # Document and File Utilities
 
-**Status:** Source verified. PDF conversion/merge runtime not exercised.
+**Status:** Verified on the reference deployment. Core conversions and PDF
+operations were exercised with the integration suite in `tests/test_doc_tools.py`.
 
 ## Purpose
 
-Defines the repository’s document conversion and file-opening utilities:
+Defines the repository's document/PDF toolkit and its file-opening helpers:
 
-- `docx2pdf`
-- `pdf2docx`
+- `docs` / `doc` umbrella command and individual command wrappers
 - `pdfmerge`
+- `doc2pdf` / `docx2pdf`
+- `pdf2docx`, `pdf2doc`, `pdf2odt`
+- `md2pdf`, `md2docx`, `md2html`
+- `pdfsplit`, `pdfselect`, `pdfcompress`, `pdf2img`, `img2pdf`
+- `pdf2txt`, `pdf2html`, `pdfinfo`, `pdfrotate`, `pdfwatermark`
+- `pdfencrypt`, `pdfdecrypt`, `pdfextractimages`, `pdfocr`
 - Fish `open` function
 - Zathura configuration
 - XDG MIME and user-directory defaults
@@ -17,8 +23,9 @@ Defines the repository’s document conversion and file-opening utilities:
 
 In scope:
 
-- `.local/bin/` and `local/.local/` utilities.
-- `pdfmerge` implementation and Python environment.
+- `local/.local/bin/` wrappers.
+- `local/.local/share/doctools/` implementation, setup script, and README.
+- Installed venv and runtime state.
 - `fish/.config/fish/functions/open.fish`.
 - `zathura/.config/zathura/zathurarc`.
 - `xdg/.config/mimeapps.list`.
@@ -26,109 +33,166 @@ In scope:
 
 Out of scope:
 
-- LibreOffice internals.
+- LibreOffice, poppler, Ghostscript, WeasyPrint, or pdf2docx internals.
 - PDF format specification.
-- Desktop environment file-manager integration beyond MIME defaults.
+- Desktop file-manager integration beyond MIME defaults.
+- Reliable PDF → PPTX/XLSX conversion (not offered).
 
-## File duplication
+## Source layout
 
-| Path | Status | Role |
-| --- | --- | --- |
-| `.local/bin/docx2pdf` | Source | DOCX → PDF wrapper |
-| `.local/bin/pdf2docx` | Source | PDF → DOCX wrapper |
-| `.local/bin/pdfmerge` | Source | PDF merge wrapper |
-| `.local/share/pdfmerge/pdfmerge.py` | Source | PDF merge implementation |
-| `local/.local/bin/pdfmerge` | Active Stow package | Same wrapper |
-| `local/.local/share/pdfmerge/pdfmerge.py` | Active Stow package | Same implementation |
+| Path | Role |
+| --- | --- |
+| `local/.local/bin/_run` | Shared launcher for every command |
+| `local/.local/bin/docs`, `doc` | Umbrella commands; `docs --help` prints the full manual |
+| `local/.local/bin/pdfmerge` | PDF merge wrapper |
+| `local/.local/bin/docx2pdf`, `doc2pdf` | Office/Markdown/image → PDF |
+| `local/.local/bin/pdf2docx`, `pdf2doc` | PDF → DOCX / legacy DOC |
+| `local/.local/bin/pdf2odt`, `pdfsplit` | PDF conversion/splitting |
+| `local/.local/bin/pdfselect`, `pdfcompress`, `pdf2img`, `img2pdf` | PDF page/image operations |
+| `local/.local/bin/pdf2txt`, `pdf2html`, `pdfinfo` | extraction and metadata |
+| `local/.local/bin/pdfrotate`, `pdfwatermark`, `pdfencrypt`, `pdfdecrypt` | page/security operations |
+| `local/.local/bin/pdfextractimages`, `pdfocr` | embedded images and OCR |
+| `local/.local/bin/md2pdf`, `md2docx`, `md2html` | Markdown conversion |
+| `local/.local/share/doctools/doctools/*.py` | Python implementation |
+| `local/.local/share/doctools/setup.sh` | Installs the venv and Python dependencies |
+| `local/.local/share/doctools/README.md` | Toolkit README |
+| `tests/test_doc_tools.py` | Integration tests |
+| `tests/make_doc_fixtures.py` | Fixture generator |
+| `tests/run_doc_tools.sh` | Test runner |
 
-`install.sh` stows `local`, not `.local`. `.local` is an older duplicate.
+Stow installs the wrappers into `~/.local/bin/` and the implementation into
+`~/.local/share/doctools/`. The installed venv lives at
+`~/.local/share/doctools/venv`; runtime state lives at
+`~/.local/state/doctools/`. The old `.local/` duplicate tree was removed;
+`local` is the only document-toolkit Stow package.
 
-`install_local_bin_tools()` symlinks only `docx2pdf` and `pdf2docx`.
-`pdfmerge` is provided by the `local` Stow package.
+## `docs` / `doc` manual
 
-## `docx2pdf`
+`docs --help` (or `doc --help`) prints a grouped manual containing every
+command, its meaning, major options, and examples. `docs <command> --help`
+prints that command's complete argparse help.
 
-Usage:
-
-```bash
-docx2pdf input.docx
-docx2pdf input.docx output.pdf
-docx2pdf -all file1.docx file2.docx ...
-```
-
-Behavior:
-
-- Requires `libreoffice`.
-- Runs `libreoffice --headless --convert-to pdf <input>`.
-- LibreOffice writes `<input>.pdf` next to the input.
-- A custom output path renames the generated file.
-- Batch mode skips non-`.docx` and missing files.
-- Single mode requires one or two arguments.
-- Does not create missing output directories.
-- Does not validate the produced PDF.
-
-## `pdf2docx`
-
-Usage:
+Examples:
 
 ```bash
-pdf2docx input.pdf
-pdf2docx input.pdf output.docx
-pdf2docx -all file1.pdf file2.pdf ...
+docs --help
+docs pdfmerge --help
+docs doctor
+docs formats
 ```
 
-Behavior:
-
-- Uses `~/.local/share/pdfmerge/venv/bin/pdf2docx`.
-- `install.sh` installs `pdf2docx` into the `pdfmerge` venv.
-- Single mode executes the venv binary with `convert <input> -o <output>`.
-- Batch mode skips non-`.pdf` and missing files.
-
-`scripts/bootstrap-tools.sh` creates a separate
-`~/.local/share/pdf2docx/venv`, but `install.sh` does not use it.
+`docs` and `doc` are aliases. Every command is also available directly in
+`~/.local/bin`, for example `pdfmerge` and `docx2pdf`.
 
 ## `pdfmerge`
 
-Wrapper:
+### Output contract
+
+Running `pdfmerge` in a directory of PDFs produces exactly three files:
+
+| File | Contents | Page numbering |
+| --- | --- | --- |
+| `final.pdf` | All source PDFs, **no TOC** | Content pages `1..N` |
+| `toc.pdf` | TOC only | Numbers refer to `final.pdf` |
+| `final_toc.pdf` | TOC followed by all source PDFs | Embedded TOC offset for this file |
+
+`final_toc.pdf` adds bookmarks for the TOC and every source. `final.pdf` adds
+bookmarks for every source. Page labels are set so TOC pages are roman and
+content pages are decimal.
+
+Optional `--legacy-names` also writes `merged.pdf` (copy of `final.pdf`) and
+`merged_toc.pdf` (copy of `final_toc.pdf`) for old scripts.
+
+### Behavior
+
+- With no file arguments, scans the current directory and naturally sorts
+  `*.pdf` case-insensitively.
+- With file arguments, preserves the given order.
+- Excludes files generated by this toolkit from scans, using PDF metadata.
+- An old `final.pdf` without the toolkit's metadata is moved to
+  `final.pdf.pre-doctools.<timestamp>` before the new `final.pdf` is written.
+- Refuses to overwrite a non-generated `toc.pdf` or `final_toc.pdf`; use
+  `--out-dir` or `--prefix`.
+- Supports `--out-dir`, `--prefix`, `--password`, `--skip-errors`,
+  `--no-clobber`, `--dry-run`, and `--legacy-names`.
+- Writes only after all outputs validate, using temporary files and atomic
+  replacement.
+- Handles Unicode/CJK filenames and long filenames.
+- Uses WeasyPrint/Pango for the TOC; falls back to ReportLab if WeasyPrint is
+  unavailable.
+
+## Conversions
+
+### `doc2pdf` / `docx2pdf`
 
 ```bash
-exec ~/.local/share/pdfmerge/venv/bin/python \
-     ~/.local/share/pdfmerge/pdfmerge.py "$@"
+docx2pdf report.docx
+docx2pdf report.docx -o build/report.pdf
+docx2pdf -all one.docx two.docx
+doc2pdf report.docx report.md photo.png
 ```
 
-Implementation:
+- Office/HTML/CSV/PPTX/XLSX → PDF via LibreOffice.
+- Markdown/TXT → PDF via WeasyPrint.
+- Images → PDF via img2pdf.
+- Existing PDF inputs are skipped when the output path is the same file.
+- Custom outputs are created recursively; failures return nonzero.
+- LibreOffice uses an isolated profile under the toolkit state directory.
 
-- Scans the current working directory for `*.pdf` (case-insensitive).
-- Sorts by filename.
-- Excludes `final.pdf` and `.__pdfmerge_toc__.pdf`.
-- Loads each PDF with `pypdf`.
-- Builds an A4 table of contents with ReportLab:
-  - Title “Table of Contents”.
-  - One line per PDF: filename, dots, page number.
-  - New TOC page when y < 50.
-- Two-pass TOC:
-  1. Build with `toc_pages=0`.
-  2. Count generated TOC pages.
-  3. Rebuild with the correct offset.
-- Writes TOC pages, then all source pages.
-- Adds a PDF outline item for each source file.
-- Writes `final.pdf`.
-- Removes the temporary TOC.
-- Prints `final.pdf created`.
+### `pdf2docx` / `pdf2doc` / `pdf2odt`
 
-Dependencies: `pypdf`, `reportlab`, Python 3, and the venv created by
-`install.sh`.
+```bash
+pdf2docx report.pdf -o report.docx
+pdf2docx report.pdf --pages 1-10
+pdf2doc report.pdf -o legacy.doc
+pdf2odt report.pdf -o report.odt
+```
 
-Limitations:
+`pdf2docx` uses the pdf2docx Python API and supports `--pages`, `--start`,
+`--end`, and `--password`. DOC/ODT outputs go through DOCX + LibreOffice.
 
-- Always writes `final.pdf` in the current directory; overwrites existing
-  output.
-- Processes every PDF in the directory, including unrelated files.
-- No CLI options, recursion, encryption handling, or page-range selection.
-- Page numbers are physical pages; front matter is not offset.
-- TOC filenames are not escaped for ReportLab.
-- Concurrent runs can race on `final.pdf` and the TOC temporary.
-- Does not validate the output PDF.
+### `md2pdf` / `md2docx` / `md2html`
+
+```bash
+md2pdf README.md --toc -o README.pdf
+md2docx README.md -o README.docx
+md2html README.md -o README.html
+```
+
+Markdown is rendered to HTML with tables, fenced code, footnotes, and an
+optional TOC. PDF uses WeasyPrint; DOCX uses LibreOffice's HTML import; HTML
+uses the toolkit stylesheet.
+
+### `img2pdf`
+
+```bash
+img2pdf page-*.png -o pages.pdf
+img2pdf scan.jpg --pagesize A4 --fit fill -o scan.pdf
+```
+
+## PDF operations
+
+```bash
+pdfsplit big.pdf --every 10 -o parts
+pdfsplit big.pdf --pages 1-3,5 -o ranges
+pdfselect big.pdf --pages 10,1-3 -o selected.pdf
+pdfcompress big.pdf --preset ebook -o small.pdf
+pdf2img big.pdf --dpi 150 --format png -o pages
+pdf2img big.pdf --format webp -o pages-webp
+pdf2txt big.pdf -o big.txt
+pdf2html big.pdf -o big.html
+pdfinfo --json big.pdf
+pdfrotate big.pdf --pages 1-3 --angle 90 -o rotated.pdf
+pdfwatermark big.pdf --text CONFIDENTIAL --opacity 0.15 -o marked.pdf
+pdfencrypt big.pdf -p secret -o locked.pdf
+pdfdecrypt locked.pdf -p secret -o unlocked.pdf
+pdfextractimages big.pdf -o images
+pdfocr scanned.pdf -o searchable.pdf
+```
+
+Backends: pypdf (split/select/rotate/encrypt/decrypt/merge/watermark),
+poppler (`pdftotext`, `pdftoppm`, `pdftohtml`, `pdfimages`), Ghostscript
+(compression), Tesseract or OCRmyPDF (OCR), and img2pdf (images → PDF).
 
 ## `open.fish`
 
@@ -146,8 +210,8 @@ Limitations:
 | `.docx .pptx .xlsx` | `libreoffice` |
 | other | `xdg-open` |
 
-- Runs each command in the background with stdout/stderr suppressed.
-- Uses extension mapping, not MIME detection.
+It runs each command in the background with stdout/stderr suppressed and uses
+extension mapping, not MIME detection.
 
 ## Zathura
 
@@ -162,17 +226,10 @@ set page-padding 10
 set scroll-full-overlap 0.01
 ```
 
-Behavior:
-
-- Best-fit opening.
-- Page-aware scrolling.
-- Status bar visible.
-- 50 px scroll steps.
-- 10 px page padding.
-- 1% full-page overlap.
-
-Dependencies: `zathura` plus `zathura-pdf-poppler`, `zathura-djvu`, and
-`zathura-ps` for supported formats.
+Behavior: best-fit opening, page-aware scrolling, visible status bar, 50 px
+scroll steps, 10 px page padding, and 1% full-page overlap. Dependencies are
+`zathura` plus `zathura-pdf-poppler`, `zathura-djvu`, and `zathura-ps` for the
+supported formats.
 
 ## XDG MIME defaults
 
@@ -191,15 +248,11 @@ x-scheme-handler/antigravity=antigravity.desktop
 font/woff2=brave-browser.desktop;
 ```
 
-- Zen is the default browser for HTML/HTTP/HTTPS/about/unknown.
+- Zen handles HTML/HTTP/HTTPS/about/unknown.
 - Antigravity handles its custom URI scheme.
 - Brave is associated with WOFF2 fonts.
-- Desktop files must exist:
-  - `zen.desktop` from `zen-browser-bin`
-  - `brave-browser.desktop` from `brave-bin`
-  - `antigravity.desktop` from optional AUR `antigravity`
-
-On the reference deployment, `~/.config/mimeapps.list` is a real file.
+- Desktop files come from `zen-browser-bin`, `brave-bin`, and the optional AUR
+  `antigravity` package.
 
 ## XDG user directories
 
@@ -217,64 +270,105 @@ XDG_VIDEOS_DIR="$HOME/"
 XDG_PROJECTS_DIR="$HOME/"
 ```
 
-Only Downloads and Pictures are separate. `install.sh`:
-
-- Copies the file to `~/.config/user-dirs.dirs` as a real file.
-- Creates `~/Downloads` and `~/Pictures`.
-- Ignores the file during Stow so `xdg-user-dirs-update` cannot dirty the
-  repository.
+Only Downloads and Pictures are separate. `install.sh` copies the file to
+`~/.config/user-dirs.dirs` as a real file, creates `~/Downloads` and
+`~/Pictures`, and Stow-ignores the source so `xdg-user-dirs-update` cannot dirty
+the repository.
 
 ## Dependencies
 
-- `libreoffice-fresh` for `docx2pdf`
-- Python + `pypdf`, `reportlab`, `pdf2docx`
-- `zathura` and format plugins
-- `imv`, `mpv`, `xdg-utils`
-- Desktop files for Zen/Brave/Antigravity
-- Font packages for document rendering
+System packages installed by `install.sh` for this toolkit:
 
-## Reproduction
+- `libreoffice-fresh` (already in `PACMAN_APPS`)
+- `poppler`
+- `ghostscript`
+- `qpdf`
+- `python-weasyprint` (provides the Pango/Cairo runtime used by the venv)
+
+Additional existing packages used by the toolkit: `tesseract`,
+`tesseract-data-eng`, `imagemagick`.
+
+Python packages installed into `~/.local/share/doctools/venv`:
+
+```text
+pypdf, reportlab, pdf2docx, img2pdf, weasyprint, markdown,
+python-docx, pillow, cryptography
+```
+
+Optional: `pandoc` (external fallback only), `ocrmypdf` (preferred OCR
+backend). Both are optional; the toolkit works without them.
+
+## Installation
+
+`install.sh` stows `local`, links every wrapper in `local/.local/bin` into
+`~/.local/bin`, and creates the venv:
 
 ```bash
-sudo pacman -S --needed libreoffice-fresh python imagemagick \
-  zathura zathura-pdf-poppler zathura-djvu zathura-ps \
-  imv mpv xdg-utils
-
 cd ~/dotfiles
-stow --target="$HOME" --no-folding local xdg zathura
+./install.sh
+```
 
-mkdir -p ~/.local/share/pdfmerge
-python3 -m venv ~/.local/share/pdfmerge/venv
-~/.local/share/pdfmerge/venv/bin/pip install pypdf reportlab pdf2docx
+For a toolkit-only refresh:
 
-ln -sfn ~/dotfiles/.local/bin/docx2pdf ~/.local/bin/docx2pdf
-ln -sfn ~/dotfiles/.local/bin/pdf2docx ~/.local/bin/pdf2docx
+```bash
+./scripts/bootstrap-tools.sh
+```
+
+Manual equivalent:
+
+```bash
+cd ~/dotfiles
+stow --target="$HOME" --no-folding --restow --ignore='venv$' --ignore='^_run$' local
+./local/.local/share/doctools/setup.sh
 ```
 
 ## Verification
 
 ```bash
-command -v docx2pdf pdf2docx pdfmerge zathura imv mpv libreoffice xdg-open
-~/.local/share/pdfmerge/venv/bin/python -c 'import pypdf, reportlab, pdf2docx'
+command -v docs doc pdfmerge docx2pdf pdf2docx pdftotext pdftoppm gs
+command -v zathura imv mpv libreoffice xdg-open
+~/.local/share/doctools/venv/bin/python -c \
+  'import pypdf, reportlab, pdf2docx, img2pdf, weasyprint, markdown, docx'
+docs doctor
 zathura --version
+./tests/run_doc_tools.sh
 ```
 
-Do not run `pdfmerge --help` in a directory containing PDFs. The script ignores
-arguments, scans the current directory, and writes `final.pdf`.
+Manual merge check:
+
+```bash
+mkdir -p state/doc-tools-check
+cp state/doc-tools-fixtures/alpha.pdf state/doc-tools-fixtures/beta.pdf state/doc-tools-check/
+cd state/doc-tools-check
+pdfmerge
+pdfinfo final.pdf | grep Pages
+pdfinfo toc.pdf | grep Pages
+pdfinfo final_toc.pdf | grep Pages
+pdftotext final.pdf - | head
+pdftotext final_toc.pdf - | head
+```
+
+Expected: `final.pdf` starts with the first source page, `toc.pdf` starts with
+“Table of Contents”, and `final_toc.pdf` starts with the TOC followed by the
+sources.
 
 ## Known limitations
 
-- `.local/` and `local/` duplicate the PDF tools; only `local/` is stowed.
-- `docx2pdf` depends on LibreOffice output behavior and does not validate
-  conversion.
-- `pdf2docx` relies on the venv created by `install.sh`.
-- `pdfmerge` always scans the current directory and overwrites `final.pdf`.
-- `open.fish` uses extension mapping.
-- MIME associations depend on optional desktop files.
-- Most XDG user directories point at `$HOME`.
+- PDF → PPTX/XLSX is not offered; it is not reliable.
+- PDF → DOCX is layout reconstruction, not a perfect Word document.
+- Scanned PDFs need `pdfocr` before `pdf2docx` for useful text.
+- OCR creates an image PDF with a text layer; OCRmyPDF is preferred when
+  installed but is not required.
+- `pdfmerge` uses a single `--password` for all encrypted inputs.
+- The ReportLab TOC fallback is Latin-centric; WeasyPrint is the normal renderer
+  and handles CJK filenames.
+- PDF forms, attachments, and source bookmarks are not preserved by the merge
+  operation; page content is preserved.
+- Very large PDFs are processed in memory by pypdf.
 
 ## Related documentation
 
 - [terminal-shell-and-prompt.md](terminal-shell-and-prompt.md)
 - [system-overview.md](system-overview.md)
 - [installation-and-package-management.md](installation-and-package-management.md)
+- [reproduction-and-verification.md](reproduction-and-verification.md)

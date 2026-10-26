@@ -360,7 +360,7 @@ local function resize_image(args)
   })
 end
 
--- Pandoc document export
+-- Document export: prefer the doc-tools suite, fall back to pandoc.
 local function export_document(format)
   local infile = vim.fn.expand("%:p")
   local outfile = vim.fn.expand("%:p:r") .. "." .. format
@@ -371,14 +371,28 @@ local function export_document(format)
   end
   
   vim.notify("Exporting to " .. format:upper() .. "...", vim.log.levels.INFO)
-  local cmd = string.format("pandoc %q -o %q", infile, outfile)
-  
+
+  local toolkit = {
+    pdf = "md2pdf",
+    html = "md2html",
+    docx = "md2docx",
+  }
+  local cmd
+  if vim.fn.executable("docs") == 1 and toolkit[format] then
+    cmd = string.format("%s %q -o %q", toolkit[format], infile, outfile)
+  else
+    cmd = string.format("pandoc %q -o %q", infile, outfile)
+  end
+
   vim.fn.jobstart(cmd, {
     on_exit = function(_, exit_code)
       if exit_code == 0 then
         vim.notify("Successfully exported to " .. outfile, vim.log.levels.INFO)
       else
-        vim.notify("Export failed. Make sure 'pandoc' is installed.", vim.log.levels.ERROR)
+        vim.notify(
+          "Export failed. Install the doc-tools suite (docs doctor) or pandoc.",
+          vim.log.levels.ERROR
+        )
       end
     end
   })

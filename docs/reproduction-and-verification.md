@@ -101,11 +101,18 @@ sudo pacman -S --needed \
 sudo pacman -S --needed sqlite3 file util-linux jq fzf libnotify
 ```
 
-#### PDF tools
+#### Document and PDF tools
 
 ```bash
-sudo pacman -S --needed libreoffice-fresh python
+sudo pacman -S --needed libreoffice-fresh poppler ghostscript qpdf \
+  python-weasyprint tesseract tesseract-data-eng
+cd ~/dotfiles
+./scripts/bootstrap-tools.sh
 ```
+
+`bootstrap-tools.sh` creates `~/.local/share/doctools/venv` and installs the
+Python backend packages there. The source implementation is provided by the
+`local` Stow package.
 
 #### Neovim
 
@@ -124,7 +131,7 @@ sudo pacman -S --needed opencode nodejs npm uv
 
 ```bash
 cd ~/dotfiles
-stow --target="$HOME" --no-folding --restow \
+stow --target="$HOME" --no-folding --restow --ignore='venv$' --ignore='^_run$' \
   hypr waybar wofi kitty fish starship dunst gtk htop zathura \
   trash xdg local nvim opencode
 ```
@@ -210,7 +217,7 @@ add them to the ignored `fish/.config/fish/conf.d/secrets.fish`.
 | Trash | `trash/*` | `~/.local/bin/*`, `~/.local/share/trash-system/*` |
 | Neovim | `nvim/.config/nvim/*` | same + `~/.local/share/nvim/lazy/*` |
 | OpenCode | `opencode/.config/opencode/*` | same |
-| PDF tools | `.local/bin/*`, `local/.local/*` | `~/.local/bin/*`, `~/.local/share/pdfmerge/*` |
+| Document/PDF tools | `local/.local/bin/*`, `local/.local/share/doctools/*` | `~/.local/bin/*`, `~/.local/share/doctools/*`, `~/.local/state/doctools/*` |
 | XDG | `xdg/.config/*` | `~/.config/mimeapps.list`, `user-dirs.dirs` |
 | Zathura | `zathurarc` | `~/.config/zathura/zathurarc` |
 | htop | `htoprc` | `~/.config/htop/htoprc` |
@@ -395,6 +402,39 @@ If initialized:
 Expected: `OK` and a table. If not initialized, see
 [trash-management-system.md](trash-management-system.md).
 
+### Document and PDF toolkit
+
+```bash
+command -v docs doc pdfmerge docx2pdf pdf2docx pdftotext pdftoppm gs
+docs doctor
+docs --help
+./tests/run_doc_tools.sh
+```
+
+Expected:
+
+- `docs --help` prints the grouped command manual.
+- `docs doctor` reports all required Python modules and system commands as OK.
+- The integration suite passes all 25 tests.
+- `pdfmerge` produces `final.pdf` (no TOC), `toc.pdf` (TOC only), and
+  `final_toc.pdf` (TOC + content) in `state/doc-tools-tests`-style scratch
+  directories.
+
+Manual merge check:
+
+```bash
+mkdir -p state/doc-tools-manual
+cp state/doc-tools-fixtures/alpha.pdf state/doc-tools-fixtures/beta.pdf state/doc-tools-manual/
+cd state/doc-tools-manual
+pdfmerge
+pdftotext final.pdf - | head -3
+pdftotext toc.pdf - | head -3
+pdftotext final_toc.pdf - | head -6
+```
+
+The first command must show source content, the second “Table of Contents”, and
+the third “Table of Contents” followed by source content.
+
 ### Neovim
 
 ```bash
@@ -428,9 +468,10 @@ Start `opencode` in a scratch directory and verify:
 7. Add wallpapers and test `SUPER+T`.
 8. Verify Hyprlock.
 9. Verify trash if required.
-10. Bootstrap Neovim (`:Lazy sync`, `:Mason`, `:TSUpdate`).
-11. Set OpenCode secrets and verify.
-12. Commit local changes.
+10. Verify the document/PDF toolkit (`docs doctor`, `tests/run_doc_tools.sh`).
+11. Bootstrap Neovim (`:Lazy sync`, `:Mason`, `:TSUpdate`).
+12. Set OpenCode secrets and verify.
+13. Commit local changes.
 
 ## Troubleshooting
 

@@ -31,6 +31,8 @@ __pycache__/
 # ---------------------------
 # Environments (explicit only)
 # ---------------------------
+# The document/PDF toolkit venv lives under ~/.local/share/doctools/venv and is
+# never committed.  Older .local/share/*/venv paths are retained defensively.
 .local/share/*/venv/
 
 # ---------------------------
