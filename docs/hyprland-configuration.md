@@ -230,7 +230,7 @@ The mouse sensitivity applies only to a device named `epic-mouse-v1`.
 | `SUPER+Return` | Launch `kitty` |
 | `SUPER+Q` | `confirm_close.sh` |
 | `SUPER+E` | Launch Thunar |
-| `SUPER+R` | `wofi --show drun` |
+| `SUPER+R` | Application launcher (`app-launcher.sh`); opens the pick on a new workspace |
 | `SUPER+T` | Wallpaper picker |
 | `SUPER+B` | Browser picker |
 | `SUPER+N` | Toggle `hyprsunset -t 3000` |

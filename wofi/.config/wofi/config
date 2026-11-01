@@ -1,4 +1,10 @@
-width=800 height=600 location=center show=drun prompt=Search... allow_markup=true no_actions=true halign=fill orientation=vertical content_halign=fill
-no_sort=true
-matching=none
+width=600
+height=300
+location=center
+prompt=Select an Application
+allow_markup=true
+no_actions=true
+halign=fill
+orientation=vertical
+content_halign=fill
 style=/home/aditya/.cache/autotheme/wofi.css

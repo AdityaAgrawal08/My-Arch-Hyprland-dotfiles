@@ -3,7 +3,7 @@
 local mainMod = "SUPER"
 local terminal = "kitty"
 local fileManager = "thunar"
-local menu = "wofi --show drun"
+local menu = "~/.config/wofi/app-launcher.sh"
 
 
 ------------------

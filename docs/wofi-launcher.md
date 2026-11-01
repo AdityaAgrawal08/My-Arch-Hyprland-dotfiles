@@ -35,6 +35,7 @@ Out of scope:
 | `wofi/.config/wofi/style.css` | Static fallback stylesheet |
 | `wofi/.config/wofi/confirm.css` | Static fallback confirmation stylesheet |
 | `wofi/.config/wofi/browser-launcher.sh` | Zen/Brave/Firefox picker |
+| `wofi/.config/wofi/app-launcher.sh` | Application launcher; opens the pick on a new workspace |
 | `hypr/.config/hypr/scripts/templates/wofi.css` | Generated main stylesheet template |
 | `hypr/.config/hypr/scripts/templates/wofi-confirm.css` | Generated confirmation template |
 | `hypr/.config/hypr/scripts/wallpaper_picker.sh` | Wallpaper picker |
@@ -46,17 +47,28 @@ Out of scope:
 ## Main configuration
 
 ```ini
-width=800 height=600 location=center show=drun prompt=Search... allow_markup=true no_actions=true halign=fill orientation=vertical content_halign=fill
-no_sort=true
-matching=none
+width=800
+height=600
+location=center
+prompt=Select an Application
+allow_markup=true
+no_actions=true
+halign=fill
+orientation=vertical
+content_halign=fill
 style=/home/aditya/.cache/autotheme/wofi.css
 ```
 
 Behavior:
 
-- Default mode: `drun`.
-- `matching=none` disables filtering unless a command overrides it.
-- `no_sort=true`; callers control ordering.
+- Wofi parses exactly one `key=value` pair per line; anything after the first
+  `=` on a line is consumed as that key's value.
+- Default mode: `drun`, passed on the command line by the launcher.
+- `prompt=Select an Application`.
+- Filtering and sort order use wofi defaults (fuzzy matching). The former
+  `matching=none` and `no_sort=true` entries were dropped with the line-split
+  fix; add them back as separate lines if unfiltered, caller-sorted output is
+  wanted.
 - `style=` points to the generated autotheme stylesheet.
 - `allow_markup=true` enables Pango markup.
 
@@ -101,10 +113,29 @@ They are not loaded while the generated files exist.
 `SUPER+R` executes:
 
 ```bash
-wofi --show drun
+~/.config/wofi/app-launcher.sh
 ```
 
-Uses the main configuration and generated stylesheet.
+The launcher opens the selected application on a brand-new workspace:
+
+1. `wofi --show drun --define=drun-print_command=true` runs the picker and
+   prints the selected `.desktop` entry's expanded `Exec` line instead of
+   launching it.
+2. The script reads `hyprctl workspaces -j` and computes the next workspace as
+   the highest existing workspace ID plus one.
+3. `hyprctl dispatch "hl.dsp.focus({ workspace = <id> })"` creates and focuses
+   that workspace, playing the workspace animation.
+4. `hyprctl dispatch "hl.dsp.exec_cmd(<command>, { workspace = <id> })"`
+   launches the application pinned to the new workspace, playing the window
+   pop-in animation.
+
+Properties:
+
+- The picker uses the main configuration and generated stylesheet.
+- Cancelling the picker (Escape) exits without creating a workspace.
+- Requires `jq` for the workspace ID lookup and `hyprctl` for dispatching.
+- Uses Hyprland's Lua dispatcher syntax (`hl.dsp.*`).
+- Wofi expands `.desktop` field codes (`%U`, `%f`, ...) in the printed command.
 
 ## Browser picker
 
@@ -229,7 +260,7 @@ cd ~/dotfiles
 stow --target="$HOME" --no-folding wofi
 ~/.config/hypr/scripts/wallpaper_switch.sh init
 
-wofi --show drun
+~/.config/wofi/app-launcher.sh
 ```
 
 ## Verification
@@ -244,6 +275,7 @@ Verified:
 
 Not verified:
 
+- Application launcher selection and new-workspace behaviour.
 - Wallpaper picker selection through the UI.
 - Power menu actions and sound playback.
 - Confirmation dialog interaction.
@@ -255,7 +287,10 @@ Not verified:
   `$HOME/.cache/autotheme`.
 - `browser-launcher.sh` has no shebang and hardcoded browser paths.
 - `power-menu.sh` hardcodes sound paths and does not handle missing files.
-- `matching=none` disables filtering in the default launcher unless overridden.
+- `app-launcher.sh` cannot open `Terminal=true` desktop entries in a terminal;
+  wofi's terminal wrapper is bypassed when the command is printed.
+- Already-running single-instance applications (Zen, Brave, Firefox) are
+  activated instead of opened; the freshly created workspace stays empty.
 - Wofi does not live-reload styles; changes appear on the next launch.
 
 ## Related documentation

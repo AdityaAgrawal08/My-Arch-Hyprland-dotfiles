@@ -349,10 +349,12 @@ Expected:
 ### Wofi
 
 ```bash
-wofi --show drun
+~/.config/wofi/app-launcher.sh
 ```
 
-Expected: themed launcher. `SUPER+T` opens the wallpaper picker with thumbnails.
+Expected: themed launcher with the prompt `Select an Application`; selecting an
+application switches to a newly created workspace (highest ID + 1) and opens
+the application there. `SUPER+T` opens the wallpaper picker with thumbnails.
 
 ### Dunst
 
