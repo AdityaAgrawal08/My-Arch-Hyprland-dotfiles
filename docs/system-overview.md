@@ -130,13 +130,14 @@ targets aside before linking.
 
 | Flow | Trigger | Result |
 | --- | --- | --- |
-| Login | `hyprland.start` | Battery notifier, adaptive font, NetworkManager applet, Waybar, wallpaper restore, PolicyKit, Bluetooth applet, clipboard watchers |
+| Login | `hyprland.start` | Battery notifier, adaptive font, NetworkManager applet, Waybar, wallpaper restore, PolicyKit user service, Bluetooth applet, clipboard watchers |
 | Wallpaper switch | `SUPER+T` or CLI | Paint wallpaper, analyse scene, extract a weighted seed/palette, run Matugen, render surfaces, reload Waybar/Kitty/Dunst, update borders |
 | Terminal opacity | `terminal` function | Fade Kitty opacity, write per-instance mode, switch generated Kitty variant, update Neovim transparency |
 | UI scale | `SUPER+=` / `SUPER+-` | Change focused monitor scale, regenerate Waybar CSS |
 | Trash | `safe-rm` / `trash` | Hash content, store blob, update SQLite catalog, restore/purge/clean |
 | Editor | `nvim` | Load core modules, LSP, completion, document mode, pinned plugins, and the wallpaper-derived colorscheme |
 | Agent CLI | `opencode` | Load provider/MCP/plugin config, secrets from environment, skills and global instructions |
+| Task Manager | `taskmgr`, `SUPER+I`, `CTRL+SHIFT+Esc` | Nine-page live system explorer, process/thread/port inspector, services, power tunables, hardware, logs |
 
 ## Generated and runtime files
 
@@ -206,6 +207,10 @@ grep -E '^GRUB_(THEME|BACKGROUND)' /etc/default/grub 2>/dev/null
 # Trash state
 systemctl --user is-enabled trash-age.timer trash-clean.timer trash-notify.timer
 ls -l ~/.local/share/trash-system 2>/dev/null
+
+# Task Manager backend truth cross-checks
+taskmgr --verify-truth
+taskmgr --doctor-json | jq 'map({status, component, summary})'
 ```
 
 ## Reproduction

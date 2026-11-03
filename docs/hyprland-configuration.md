@@ -106,13 +106,15 @@ duplication is harmless.
 | `nm-applet` | NetworkManager tray applet |
 | `waybar-scale.py start` | Start Waybar with scaled/themed CSS |
 | `wallpaper_switch.sh restore` | Restore wallpaper, backend, palette, and themed surfaces |
-| `hyprpolkitagent` | PolicyKit agent |
 | `blueman-applet` | Bluetooth tray applet |
 | `wl-paste --type text --watch cliphist store` | Text clipboard history |
 | `wl-paste --type image --watch cliphist store` | Image clipboard history |
-| `/usr/bin/hyprpolkitagent` | PolicyKit agent, launched a second time |
 
-The duplicate PolicyKit launch is redundant.
+`hyprpolkitagent` is not launched by `hyprland.lua`. The package ships the
+`hyprpolkitagent.service` user unit (`/usr/lib/hyprpolkitagent/hyprpolkitagent`);
+`install.sh` enables and starts it. The previous autostart lines used
+`hyprpolkitagent` and `/usr/bin/hyprpolkitagent`, neither of which is the real
+binary path, so the agent never ran.
 
 ### Config reload hook
 
@@ -164,6 +166,9 @@ hl.config({
     force_default_wallpaper = 0,
     disable_hyprland_logo = true,
   },
+  debug = {
+    vfr = true,
+  },
   input = {
     kb_layout = "us",
     kb_variant = "",
@@ -180,6 +185,10 @@ hl.config({
 
 The static border colors are neutral fallbacks. The autotheme engine overwrites
 them at runtime with wallpaper-derived colors.
+
+`debug.vfr = true` enables Hyprland's variable frame rate behaviour: when the
+screen is static, the compositor stops committing frames. This reduces i915
+GPU wakeups and is exposed in the Task Manager's Power page as `debug:vfr`.
 
 ### Animation curves
 
@@ -233,6 +242,8 @@ The mouse sensitivity applies only to a device named `epic-mouse-v1`.
 | `SUPER+R` | Application launcher (`app-launcher.sh`); opens the pick on a new workspace |
 | `SUPER+T` | Wallpaper picker |
 | `SUPER+B` | Browser picker |
+| `SUPER+I` | Open Task Manager & System Explorer (`~/.local/bin/taskmgr`) |
+| `CTRL+SHIFT+Esc` | Open Task Manager & System Explorer (Windows-style shortcut) |
 | `SUPER+N` | Toggle `hyprsunset -t 3000` |
 | `SUPER+Shift+V` | Clipboard history picker |
 | `SUPER+M` | Exit Hyprland |
@@ -262,7 +273,8 @@ The mouse sensitivity applies only to a device named `epic-mouse-v1`.
 | `XF86MonBrightnessUp/Down` | Adjust brightness |
 | `XF86AudioNext/Pause/Play/Prev` | Control media |
 
-There is no `SUPER+I` dashboard binding in the active configuration.
+There is no `SUPER+I` dashboard binding in the active configuration; `SUPER+I`
+now opens the Task Manager described in [task-manager.md](task-manager.md).
 
 ## Window rules
 
@@ -429,7 +441,8 @@ Not verified:
 
 - Monitor mode and scale are fixed to `1920x1080@60` and `1.5`.
 - `hypridle` is not started by `hyprland.lua`; its service is disabled.
-- PolicyKit is launched twice.
+- The PolicyKit agent is a systemd user service and is not launched by
+  `hyprland.lua`.
 - Three environment variables are set twice.
 - The night-light bind uses an absolute `/home/aditya` path.
 - `hyprpaper.conf` preloads only `eDP-1`.

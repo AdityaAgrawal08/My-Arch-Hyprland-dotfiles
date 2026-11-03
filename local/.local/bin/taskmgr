@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Launch Hyprland Task Manager & System Explorer
+set -euo pipefail
+exec python3 "$HOME/.config/hypr/scripts/taskmgr/main.py" "$@"

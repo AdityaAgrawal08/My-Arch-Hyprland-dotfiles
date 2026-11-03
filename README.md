@@ -166,20 +166,6 @@ linked into `~/.local/bin`; the implementation and Python venv live under
 See [`docs/document-and-file-utilities.md`](docs/document-and-file-utilities.md)
 for the full command reference and verification steps.
 
-### 🎛️ System Dashboard Widget
-A high-performance, Waybar-integrated settings panel (anchored directly under your cursor below the status bar). 
-
-#### 📖 How to Use:
-*   **Open/Close**: Click the Settings gear (`⚙`) icon on the right side of Waybar, or press `SUPER + I`. Press it again or click the `×` button in the top-right corner to close.
-*   **Peek Hover Expand**: Hover your mouse over the compact widget to expand it into the full dashboard; move your mouse away to collapse it back.
-*   **Battery Status Indicator**: The circular battery (`BAT`) ring dynamically changes color:
-    *   🟢 **Green** with `BAT⚡`: Charging.
-    *   🔴 **Red**: Battery level is low (20% or lower).
-    *   🟡 **Amber**: Discharging normally.
-*   **Sliders**: Scroll or drag to adjust volume and display brightness.
-*   **Power Modes**: Select `Power Saver`, `Balanced`, or `Performance` to dynamically adjust system profiles.
-*   **Focus Mode**: Set your session time using the spinbox, click **Start** to begin, and receive a critical notification when the timer finishes. Click **Reset** to cancel.
-
 ---
 
 ## 🗑️ CAS Trash Management System
@@ -361,66 +347,50 @@ stow trash
 
 To tailor components to your personal preferences, modify the following directories:
 
-*   **Hyprland Rules:** Modify [hypr/.config/hypr/hyprland.conf](file:///home/aditya/dotfiles/hypr/.config/hypr/hyprland.conf) for hotkeys and layout options.
+*   **Hyprland Rules:** Modify [hypr/.config/hypr/hyprland.lua](file:///home/aditya/dotfiles/hypr/.config/hypr/hyprland.lua) for hotkeys and layout options.
 *   **Waybar Styling:** Edit [waybar/.config/waybar/config.jsonc](file:///home/aditya/dotfiles/waybar/.config/waybar/config.jsonc) and [style.css](file:///home/aditya/dotfiles/waybar/.config/waybar/style.css).
 *   **Fish Shortcuts:** Customize [fish/.config/fish/config.fish](file:///home/aditya/dotfiles/fish/.config/fish/config.fish) to append custom variables and aliases.
 *   **Terminal Prompt:** Modify [starship/.config/starship.toml](file:///home/aditya/dotfiles/starship/.config/starship.toml).
 
 ---
 
-## 🛠️ System Dashboard Development Guide
+## 🖥️ Task Manager & System Explorer
 
-If you want to maintain, modify, or replicate this system dashboard widget in the future, follow this architectural blueprint.
+`taskmgr` (alias `sysmon`) is a GTK4 real-time system explorer built for this
+Hyprland setup. It replaces the old `system-dashboard` widget with a nine-page
+monitor: System Doctor, Performance, Processes & Threads, Ports & Network,
+Services & Startup, Power & Tunables, Audio/Camera/Bluetooth, Hardware &
+Sensors, and Logs & Crashes.
 
-### 1. Architecture Overview
-The dashboard is split into two clean Python files located in `hypr/.config/hypr/scripts/system-dashboard/`:
-1.  **`collectors.py` (Backend):** Contains independent, thread-safe data collector classes (e.g., `CPUCollector`, `NetworkCollector`, `BatteryCollector`). They handle low-level file reading (e.g., `/proc/stat`, `/sys/class/net/`) or process spawning (`journalctl`, `nmcli`) to fetch system state.
-2.  **`dashboard.py` (Frontend):** A GTK4 application (`Gtk.Application`) that builds the user interface, manages style sheets, handles user events, and runs a background thread to poll data and update the UI via `GLib.idle_add` (crucial for thread safety in GTK).
-
-### 2. Core Design Patterns to Maintain
-
-#### A. Thread-Safe UI Updates
-Never update GTK widgets directly from a background thread. Always collect data in a background thread, and then schedule the UI update on the main GTK thread using `GLib.idle_add`:
-```python
-def background_worker():
-    data = collector.get_data()
-    GLib.idle_add(apply_data_to_widgets, data)
+```bash
+taskmgr                       # Processes & Threads
+taskmgr --page performance    # Performance graphs
+taskmgr --page power          # C-states, interrupts, PowerTOP tunables
+taskmgr --doctor-json         # Working/Not Working audit as JSON
+taskmgr --verify-truth        # Cross-check every metric against kernel sources
 ```
 
-#### B. Single-Instance Show/Hide Toggle
-To make the widget feel instant, the window is kept alive in the background:
-1.  **Override Close Signal:** Intercept the `close-request` signal on the window and return `True` to hide it instead of destroying it:
-    ```python
-    def _on_close_request(self, window):
-        self.hide()
-        return True
-    ```
-2.  **Toggle on Activate:** The `Gtk.Application` uses a unique application ID (`com.system.dashboard`). When a second instance is launched, GTK's native IPC activates the primary instance instead of running a new process. We toggle window visibility in `do_activate`:
-    ```python
-    def do_activate(self):
-        if self.window.is_visible():
-            self.window.hide()
-        else:
-            self.window.present()
-            self.window.position_window()
-    ```
+Open it with `SUPER + I`, `CTRL + SHIFT + ESCAPE`, or from the Wofi launcher.
+Press `F5` or `Ctrl+R` to refresh the current page and `Esc` to close. The
+window exits completely; unlike a dashboard daemon, it does not generate idle
+wakeups.
 
-#### C. Wayland Positioning via Hyprland IPC
-Under Wayland, windows cannot set their own absolute screen coordinates. We bypass this limitation by using Hyprland's IPC (`hyprctl`):
-1.  Get the focused monitor's dimensions and scale: `hyprctl monitors -j`.
-2.  Calculate target coordinates in logical pixels: `target_x = (width / scale) - win_width - margin`.
-3.  Move, resize, and pin the window using a brief delay to allow the window to map:
-    ```python
-    subprocess.run(["hyprctl", "dispatch", "resizewindowpixel", "exact 380 590,class:com.system.dashboard"])
-    subprocess.run(["hyprctl", "dispatch", "movewindowpixel", f"exact {x} {y},class:com.system.dashboard"])
-    subprocess.run(["hyprctl", "dispatch", "pin", "class:com.system.dashboard"])
-    ```
+Key design rules:
 
-#### D. GTK4 CSS Styling without Warnings
-*   GTK's CSS engine (`Gtk.CssProvider`) is a subset of web CSS.
-*   **No trailing comments:** Never put comments like `/* ... */` on the same line as a property (e.g. `color: red; /* comment */` will fail to parse).
-*   **No `!important`:** Do not use `!important`. Instead, increase selector specificity (e.g. `button.profile-btn.active` instead of `.active`) to override default Adwaita theme styling.
-*   **Gradients & Backgrounds:** Standard GTK buttons use background gradients. To apply a solid background color, you must clear the gradient first: `background-image: none; background-color: #color;`.
+- Every value comes from `/proc`, `/sys`, a kernel command, or a system
+  service; missing data is shown as `N/A`, never as a plausible zero.
+- Root-owned sockets are labeled `(owner hidden)` instead of guessing a PID.
+- The **Data Sources** button documents the provenance of each category.
+- `Battery Impact (Est.)` is explicitly a heuristic built from measured CPU,
+  GPU, context-switch, and disk counters.
+- `taskmgr --verify-truth` performs 15 independent cross-checks and is part of
+  the repository test suite.
+- Power-profile buttons call `powerprofilesctl set` and verify the result with
+  `powerprofilesctl get`; they are hidden when the daemon is unavailable.
+
+Implementation lives in `hypr/.config/hypr/scripts/taskmgr/` (backend, UI), with
+launchers in `local/.local/bin/`. See
+[docs/task-manager.md](docs/task-manager.md) for the full reference.
 
 ---
 

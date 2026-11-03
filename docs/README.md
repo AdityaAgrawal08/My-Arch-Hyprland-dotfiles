@@ -46,6 +46,7 @@ removed `system-dashboard`, a non-existent `hyprland.conf`, and the legacy
 | [installation-and-package-management.md](installation-and-package-management.md) | `install.sh`, package groups, AUR bootstrap, Stow behavior, services, legacy `scripts/core` pipeline |
 | [hyprland-configuration.md](hyprland-configuration.md) | `hyprland.lua`, monitor/environment/autostart, appearance, keybindings, window rules, Hypridle, Hyprlock, Hyprpaper |
 | [hyprland-automation-scripts.md](hyprland-automation-scripts.md) | Battery notifier, adaptive font, UI scaling, Waybar scaling, workspace helpers, power menu, close confirmation, night light |
+| [task-manager.md](task-manager.md) | `taskmgr`/`sysmon` GTK4 system explorer, nine pages, data provenance, truth audit, limitations |
 | [autotheme-and-wallpaper-engine.md](autotheme-and-wallpaper-engine.md) | Wallpaper backends, palette extraction, Matugen, theme construction, templates, per-surface integration, picker, state, fallbacks |
 | [scene-aware-theming.md](scene-aware-theming.md) | Pillow-only attention map, metrics, tags, strategy, seed selection, resource budget, scene regression tests |
 | [waybar-status-bar.md](waybar-status-bar.md) | Module layout, active/inactive modules, styling tokens, scaling, Bluetooth provider |

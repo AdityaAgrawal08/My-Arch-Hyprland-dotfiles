@@ -46,11 +46,9 @@ hl.on("hyprland.start", function()
   hl.exec_cmd("nm-applet")
   hl.exec_cmd("~/.config/hypr/scripts/waybar-scale.py start")
   hl.exec_cmd("~/.config/hypr/scripts/wallpaper_switch.sh restore")
-  hl.exec_cmd("hyprpolkitagent")
   hl.exec_cmd("blueman-applet")
   hl.exec_cmd("wl-paste --type text --watch cliphist store")
   hl.exec_cmd("wl-paste --type image --watch cliphist store")
-  hl.exec_cmd("/usr/bin/hyprpolkitagent")
 end)
 
 -- A config reload restores the static colours above; put the generated
@@ -116,6 +114,10 @@ hl.config({
   misc = {
     force_default_wallpaper = 0,
     disable_hyprland_logo   = true,
+  },
+
+  debug = {
+    vfr = true,
   },
 
   input = {
@@ -195,6 +197,8 @@ hl.bind(mainMod .. " + R", hl.dsp.exec_cmd(menu))
 hl.bind(mainMod .. " + T", hl.dsp.exec_cmd("~/.config/hypr/scripts/wallpaper_switch.sh pick"))
 hl.bind(mainMod .. " + B", hl.dsp.exec_cmd("~/.config/wofi/browser-launcher.sh"))
 hl.bind(mainMod .. " + N", hl.dsp.exec_cmd("/home/aditya/.config/hypr/scripts/night_light_toggle.sh"))
+hl.bind(mainMod .. " + I", hl.dsp.exec_cmd("~/.local/bin/taskmgr"))
+hl.bind("CTRL + SHIFT + ESCAPE", hl.dsp.exec_cmd("~/.local/bin/taskmgr"))
 hl.bind(mainMod .. " + SHIFT + V", hl.dsp.exec_cmd("cliphist list | wofi --dmenu | cliphist decode | wl-copy"))
 
 -- Session
@@ -321,4 +325,13 @@ hl.window_rule({
   name    = "kitty-no-blur",
   match   = { class = "^kitty$" },
   no_blur = true,
+})
+
+-- Task Manager & System Explorer
+hl.window_rule({
+  name   = "taskmgr-window-rules",
+  match  = { class = "^com\\.aditya\\.taskmgr$" },
+  float  = true,
+  size   = { 1150, 660 },
+  center = true,
 })

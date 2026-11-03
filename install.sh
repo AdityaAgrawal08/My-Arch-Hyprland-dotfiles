@@ -1046,7 +1046,7 @@ enable_services() {
     say "Enabling user services"
     systemctl --user daemon-reload || true
     for dm in pipewire.socket pipewire-pulse.socket wireplumber.service \
-              xdg-user-dirs.service warp-taskbar.service; do
+              xdg-user-dirs.service warp-taskbar.service hyprpolkitagent.service; do
       if systemctl --user cat "$dm" >/dev/null 2>&1; then
         systemctl --user enable --now "$dm" || warn "Could not enable user unit $dm"
       fi
@@ -1223,13 +1223,14 @@ main() {
   # -------------------------------------------------------------------------
 
   local -a critical_cmds=(
-    Hyprland hyprctl hyprpaper hypridle hyprlock hyprshot hyprsunset hyprpolkitagent
+    Hyprland hyprctl hyprpaper hypridle hyprlock hyprshot hyprsunset /usr/lib/hyprpolkitagent/hyprpolkitagent
     matugen awww awww-daemon
     waybar wofi kitty thunar dunst cliphist wl-copy
     nm-applet blueman-applet pavucontrol
     fish nvim git stow sqlite3
     notify-send playerctl brightnessctl wpctl grim slurp zathura imv mpv
     starship jq python3 gcc pkg-config magick ffmpeg ffprobe
+    taskmgr sysmon
     doc docs pdfmerge docx2pdf pdf2docx pdftotext pdftoppm gs
   )
   local cmd missing=()

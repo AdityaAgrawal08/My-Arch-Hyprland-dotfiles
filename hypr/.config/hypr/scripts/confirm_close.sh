@@ -62,7 +62,7 @@ close_window() {
 }
 
 # Bypass confirmation for utility/overlay windows
-if [[ "$WINDOW_CLASS" =~ ^(wofi)$ ]]; then
+if [[ "$WINDOW_CLASS" =~ ^(wofi|com\.aditya\.taskmgr)$ ]]; then
     close_window
     exit 0
 fi

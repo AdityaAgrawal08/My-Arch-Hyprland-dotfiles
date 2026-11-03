@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Task Manager & System Explorer
+GenericName=System Monitor
+Comment=Real-time processes, threads, GPU, ports, services, power tunables, and system doctor for Hyprland
+Exec=/home/aditya/.local/bin/taskmgr
+Icon=utilities-system-monitor
+Terminal=false
+Categories=System;Monitor;GTK;
+Keywords=task;manager;sysmon;process;cpu;gpu;memory;ports;powertop;doctor;hyprland;
+StartupWMClass=com.aditya.taskmgr
