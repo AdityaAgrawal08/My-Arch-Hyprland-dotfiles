@@ -69,7 +69,7 @@ BATTERY / POWER
   upower -i /org/freedesktop/UPower/devices/battery_BAT* (energy-rate when
       the HP ACPI EC does not expose power_now)
   /sys/class/power_supply/ucsi*/ (USB-C PD voltage/current)
-  /sys/firmware/acpi/platform_profile (power profile)
+  /sys/firmware/acpi/platform_profile (ACPI platform profile; separate from power-profiles-daemon)
 
 GPU (Intel i915 / xe, AMD amdgpu)
   /sys/class/drm/card*/device/{vendor,device,driver}
@@ -404,6 +404,10 @@ class TaskManagerWindow(Gtk.ApplicationWindow):
             keyval == Gdk.KEY_Delete
             and self.stack.get_visible_child_name() == "processes"
         ):
+            focus = self.get_focus()
+            if focus is not None and hasattr(focus, "get_text"):
+                # Let the search entry consume Delete while the user is typing.
+                return False
             self._signal_selected(signal.SIGTERM)
             return True
         if (state & Gdk.ModifierType.CONTROL_MASK) and keyval == Gdk.KEY_f:
@@ -1760,7 +1764,7 @@ class TaskManagerWindow(Gtk.ApplicationWindow):
                 list(self.perf_collector.power_watts_hist),
                 f"{bat['watts']:.2f} W  ({bat['status']})",
                 f"Cap: {bat['energy_now_wh']:.1f}/{bat['energy_full_wh']:.1f} Wh "
-                f"(Health {bat['health_pct']}%, {bat['cycles']} cycles)  |  Profile: {bat['profile']}",
+                f"(Health {bat['health_pct']}%, {bat['cycles']} cycles)  |  Platform Profile: {bat['platform_profile']}",
                 accent_rgb=self._accent_rgb,
                 bg_rgb=self._bg_rgb,
             )

@@ -82,6 +82,37 @@ class ServicesCollector:
             return str(value)
 
     @staticmethod
+    def _annotate_timer_states(rows: list[dict]) -> None:
+        """Replace the guessed State with the real systemd ActiveState."""
+        for scope in ("system", "user"):
+            units = [r["unit"] for r in rows if r["scope"] == scope]
+            if not units:
+                continue
+            cmd = ["systemctl"]
+            if scope == "user":
+                cmd.append("--user")
+            cmd += ["show", "--property=Id,ActiveState", *units]
+            try:
+                out = subprocess.check_output(
+                    cmd, text=True, stderr=subprocess.DEVNULL, timeout=3.0
+                )
+            except Exception:
+                continue
+            state_map: dict[str, str] = {}
+            current_id = ""
+            for line in out.splitlines():
+                if line.startswith("Id="):
+                    current_id = line[3:].strip()
+                elif line.startswith("ActiveState="):
+                    state = line.split("=", 1)[1].strip()
+                    if current_id:
+                        state_map[current_id] = state
+                        current_id = ""
+            for row in rows:
+                if row["scope"] == scope and row["unit"] in state_map:
+                    row["State"] = state_map[row["unit"]]
+
+    @staticmethod
     def get_timers() -> list[dict]:
         rows: list[dict] = []
         for scope in ("system", "user"):
@@ -102,7 +133,7 @@ class ServicesCollector:
                             "scope": scope,
                             "next": ServicesCollector._fmt_usec(t.get("next")),
                             "last": ServicesCollector._fmt_usec(t.get("last")),
-                            "State": "active",
+                            "State": "unknown",
                         }
                     )
             except Exception:
@@ -169,9 +200,10 @@ class ServicesCollector:
                             else f"Disabled ({enabled_state})"
                         ),
                         "last": "never",
-                        "State": "enabled-inactive" if is_enabled else "disabled",
+                        "State": "unknown",
                     }
                 )
+        ServicesCollector._annotate_timer_states(rows)
         return rows
 
     @staticmethod

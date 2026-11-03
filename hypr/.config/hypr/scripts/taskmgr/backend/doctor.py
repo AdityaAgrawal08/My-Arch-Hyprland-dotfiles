@@ -179,24 +179,30 @@ class SystemDoctor:
 
         # 5. CAS Trash System & User Timers
         trash_db = home / ".local/share/trash-system/db/trash.db"
-        try:
-            t_out = subprocess.check_output(
-                ["systemctl", "--user", "list-timers", "--no-pager", "--output=json"],
-                text=True,
-                stderr=subprocess.DEVNULL,
-                timeout=2.0,
-            )
-            active_timers = [
-                t.get("unit", "") for t in (json.loads(t_out) if t_out.strip() else [])
-            ]
-        except Exception:
-            active_timers = []
         trash_required = (
             "trash-age.timer",
             "trash-clean.timer",
             "trash-notify.timer",
         )
-        missing_trash_timers = [t for t in trash_required if t not in active_timers]
+        active_trash_timers: list[str] = []
+        for timer in trash_required:
+            state = "unknown"
+            try:
+                state = subprocess.check_output(
+                    ["systemctl", "--user", "is-active", timer],
+                    text=True,
+                    stderr=subprocess.DEVNULL,
+                    timeout=1.5,
+                ).strip()
+            except subprocess.CalledProcessError as exc:
+                state = (exc.stdout or "").strip() or "inactive"
+            except Exception:
+                pass
+            if state == "active":
+                active_trash_timers.append(timer)
+        missing_trash_timers = [
+            t for t in trash_required if t not in active_trash_timers
+        ]
         if trash_db.is_file() and not missing_trash_timers:
             checks.append(
                 {
@@ -204,7 +210,7 @@ class SystemDoctor:
                     "category": "Dotfiles / Trash CAS",
                     "component": "CAS Trash DB & Cleanup Timers",
                     "summary": "trash.db initialized & all 3 user timers active",
-                    "details": f"Active user timers: {', '.join(active_timers)}",
+                    "details": f"Active trash timers: {', '.join(active_trash_timers)}",
                     "fix_id": "",
                     "fix_label": "",
                 }

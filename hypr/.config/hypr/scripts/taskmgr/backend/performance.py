@@ -311,7 +311,7 @@ class PerformanceCollector:
             "energy_design_wh": 0.0,
             "health_pct": 100.0,
             "remaining_str": "N/A",
-            "profile": "balanced",
+            "platform_profile": "unknown",
             "pd_volts": 0.0,
             "pd_amps": 0.0,
             "ac_online": False,
@@ -379,7 +379,7 @@ class PerformanceCollector:
         pp = Path("/sys/firmware/acpi/platform_profile")
         if pp.is_file():
             try:
-                info["profile"] = pp.read_text().strip()
+                info["platform_profile"] = pp.read_text().strip()
             except OSError:
                 pass
         return info
