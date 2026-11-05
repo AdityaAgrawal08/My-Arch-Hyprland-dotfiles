@@ -5,8 +5,10 @@ Supports:
 1. DRM fdinfo per-process and per-engine GPU utilization (Intel i915/xe, AMD amdgpu)
    without requiring root privileges.
 2. Sysfs frequency, RC6 sleep residency, and hwmon temperatures.
-3. Optional nvidia-smi fallback for NVIDIA GPUs.
-4. Zero-wakeup PCI device name lookup from /usr/share/hwdata/pci.ids.
+3. Zero-wakeup PCI device name lookup from /usr/share/hwdata/pci.ids.
+
+NVIDIA per-process attribution is not implemented in this build; the Optional
+Features tab reports that explicitly instead of fabricating values.
 """
 
 from __future__ import annotations
@@ -15,6 +17,7 @@ import functools
 import os
 import shutil
 import subprocess
+import threading
 import time
 from dataclasses import dataclass, field
 
@@ -219,6 +222,84 @@ def scan_drm_fdinfo(proc_root: str = "/proc") -> tuple[dict, dict, dict]:
     return per_dev, per_pid_ns, per_pid_mem
 
 
+def _number(value: object) -> float | None:
+    try:
+        return float(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+
+
+def query_nvidia_smi_gpus() -> list[dict]:
+    """Read aggregate GPU telemetry from nvidia-smi (no root required)."""
+    binary = shutil.which("nvidia-smi")
+    if not binary:
+        return []
+    try:
+        out = subprocess.check_output(
+            [
+                binary,
+                "--query-gpu=name,pci.bus_id,utilization.gpu,memory.used,"
+                "memory.total,temperature.gpu,clocks.current.graphics",
+                "--format=csv,noheader,nounits",
+            ],
+            text=True,
+            stderr=subprocess.DEVNULL,
+            timeout=2.0,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return []
+    rows: list[dict] = []
+    for line in out.splitlines():
+        parts = [part.strip() for part in line.split(",")]
+        if len(parts) < 7:
+            continue
+        rows.append(
+            {
+                "name": parts[0],
+                "bus_id": parts[1],
+                "busy": _number(parts[2]),
+                "mem_used": _number(parts[3]),
+                "mem_total": _number(parts[4]),
+                "temp": _number(parts[5]),
+                "freq": _number(parts[6]),
+            }
+        )
+    return rows
+
+
+def query_nvidia_smi_processes() -> dict[int, float]:
+    """Read per-process compute-app GPU memory from nvidia-smi."""
+    binary = shutil.which("nvidia-smi")
+    if not binary:
+        return {}
+    try:
+        out = subprocess.check_output(
+            [
+                binary,
+                "--query-compute-apps=pid,used_memory",
+                "--format=csv,noheader,nounits",
+            ],
+            text=True,
+            stderr=subprocess.DEVNULL,
+            timeout=2.0,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return {}
+    result: dict[int, float] = {}
+    for line in out.splitlines():
+        parts = [part.strip() for part in line.split(",")]
+        if len(parts) < 2:
+            continue
+        try:
+            pid = int(parts[0])
+        except ValueError:
+            continue
+        mem = _number(parts[1])
+        if mem is not None:
+            result[pid] = round(mem, 1)
+    return result
+
+
 @dataclass(slots=True)
 class GpuSnapshot:
     card: str = "-"
@@ -232,6 +313,7 @@ class GpuSnapshot:
     max_freq_mhz: int = 0
     freq_available: bool = False
     mem_used_mb: float = 0.0
+    mem_total_mb: float = 0.0
     clients: int = 0
     temp_c: float = 0.0
     temp_available: bool = False
@@ -249,6 +331,11 @@ class GpuCollector:
         self._prev_pid_ns: dict[int, dict[str, int]] = {}
         self._prev_rc6_ms: dict[str, int] = {}
         self._prev_ts = time.monotonic()
+        self._nvidia_ts = 0.0
+        self._nvidia_gpus: list[dict] = []
+        self._nvidia_procs: dict[int, float] = {}
+        self._nvidia_lock = threading.Lock()
+        self._nvidia_thread: threading.Thread | None = None
         self.proc_gpu_pct: dict[int, float] = {}
         self.proc_gpu_mem_mb: dict[int, float] = {}
         # Prime initial counters
@@ -328,12 +415,65 @@ class GpuCollector:
             pass
         return None
 
+    def _refresh_nvidia(self) -> None:
+        gpus = query_nvidia_smi_gpus()
+        procs = query_nvidia_smi_processes()
+        with self._nvidia_lock:
+            self._nvidia_gpus = gpus
+            self._nvidia_procs = procs
+            self._nvidia_ts = time.monotonic()
+
+    def _nvidia_smi_cached(self, now: float) -> tuple[list[dict], dict[int, float]]:
+        with self._nvidia_lock:
+            fresh = now - self._nvidia_ts < 2.0
+            running = (
+                self._nvidia_thread is not None
+                and self._nvidia_thread.is_alive()
+            )
+            if not fresh and not running:
+                self._nvidia_thread = threading.Thread(
+                    target=self._refresh_nvidia, daemon=True
+                )
+                self._nvidia_thread.start()
+            return self._nvidia_gpus, self._nvidia_procs
+
+    @staticmethod
+    def _apply_nvidia(snap: GpuSnapshot, nv: dict, clients: int) -> None:
+        if nv.get("name"):
+            snap.name = str(nv["name"])
+        snap.driver = "nvidia"
+        busy = nv.get("busy")
+        snap.busy_available = busy is not None
+        snap.busy_pct = float(busy) if busy is not None else 0.0
+        mem_used = nv.get("mem_used")
+        mem_total = nv.get("mem_total")
+        snap.mem_used_mb = float(mem_used) if mem_used is not None else 0.0
+        snap.mem_total_mb = float(mem_total) if mem_total is not None else 0.0
+        temp = nv.get("temp")
+        snap.temp_available = temp is not None
+        snap.temp_c = float(temp) if temp is not None else 0.0
+        freq = nv.get("freq")
+        snap.freq_available = freq is not None
+        snap.freq_mhz = int(freq) if freq is not None else 0
+        snap.max_freq_mhz = 0
+        snap.clients = clients
+        snap.engines = {}
+        snap.rc6_available = False
+        snap.source = "nvidia-smi (aggregate; compute apps are global)"
+
     def sample(self) -> list[GpuSnapshot]:
         now = time.monotonic()
         elapsed = max(now - self._prev_ts, 1e-4)
         self._prev_ts = now
 
         cards = self._detect_cards()
+        nvidia_gpus, nvidia_procs = self._nvidia_smi_cached(now)
+        nvidia_by_pdev = {
+            gpu["bus_id"][-12:].lower(): gpu
+            for gpu in nvidia_gpus
+            if gpu.get("bus_id")
+        }
+        matched_nvidia: set[str] = set()
         per_dev, per_pid_ns, per_pid_mem = scan_drm_fdinfo()
 
         # Per-PID GPU %
@@ -436,6 +576,28 @@ class GpuCollector:
                 snap.source = "no DRM fdinfo engine counters for visible clients"
 
             snap.engines = engines
+            nv = nvidia_by_pdev.get(pdev.lower())
+            if nv is not None:
+                matched_nvidia.add(pdev.lower())
+                self._apply_nvidia(snap, nv, len(nvidia_procs))
             snapshots.append(snap)
+
+        for bus_id, nv in nvidia_by_pdev.items():
+            if bus_id in matched_nvidia:
+                continue
+            snap = GpuSnapshot(
+                card="nvidia-smi",
+                name=str(nv.get("name") or "NVIDIA GPU"),
+                driver="nvidia",
+                pdev=bus_id,
+                runtime_status="active",
+            )
+            self._apply_nvidia(snap, nv, len(nvidia_procs))
+            snapshots.append(snap)
+
+        for pid, mem_mb in nvidia_procs.items():
+            self.proc_gpu_mem_mb[pid] = round(
+                max(self.proc_gpu_mem_mb.get(pid, 0.0), mem_mb), 1
+            )
 
         return snapshots

@@ -379,11 +379,45 @@ Key design rules:
 
 - Every value comes from `/proc`, `/sys`, a kernel command, or a system
   service; missing data is shown as `N/A`, never as a plausible zero.
+- Right-click any table row, chart, top-bar pill, or sidebar page for
+  **Details** (plain English) and **Command** (the exact terminal command, with
+  Copy). There are over 50 right-click targets.
+- Process and port scans run on a background worker thread so the UI stays
+  responsive at 0.5 s refresh.
+- A compact layout activates below 1150 logical pixels: the sidebar becomes a
+  page dropdown, secondary columns are hidden, and notebook tabs scroll.
+- `taskmgr --waybar-json` provides an opt-in Waybar module; `taskmgr --report`
+  writes JSON/Markdown/CSV plus a SQLite history snapshot.
+- The Processes page has a **Columns** chooser with saved visibility/widths and
+  a real expandable `Gtk.TreeStore` process tree with persisted collapse state.
+- A root-owned PolicyKit helper (`taskmgr/install-privileged.sh`) unlocks
+  system-service `/proc` I/O under `hidepid`, live RAPL watts, and eBPF probes
+  without running the whole GUI as root. It accepts only allowlisted operations.
+- Services show cumulative per-service I/O from cgroup accounting, systemd IO
+  counters, or visible per-PID `/proc` counters; hidden root PIDs correctly
+  report N/A instead of an undercount.
+- Hardware → **Fan & Charge** edits hwmon fan curves and battery charge
+  thresholds only when the sysfs files are writable; otherwise it shows the
+  exact prerequisite and writes nothing.
+- NVIDIA GPUs use `nvidia-smi` for aggregate utilization/temperature/memory,
+  while per-process compute memory appears in the process inspector; Intel/AMD
+  use DRM `fdinfo`.
+- Power → **RAPL live power** computes package/core watts from `energy_uj`
+  deltas when readable; otherwise it shows `N/A` and the static limit.
+- Hardware → **eBPF Live Events** runs gated `execsnoop`, `opensnoop`,
+  `biosnoop`, and `tcpretrans` probes when `bpftrace`, BTF, and root/CAP_BPF
+  are available; otherwise it shows the exact install/root command.
+- Hardware → **Storage Health** shows real per-disk SMART/NVMe values when
+  `smartctl`/`nvme-cli` are installed and explicit `N/A` otherwise. The
+  **Optional Features** tab shows missing eBPF/SMART/RAPL/cgroup-IO/NVIDIA/AMD/
+  fan-control prerequisites instead of faking those features.
+- Alerts cover battery draw, temperature, memory/PSI pressure, new listening
+  ports, and failed services; toggle them on the Doctor page.
 - Root-owned sockets are labeled `(owner hidden)` instead of guessing a PID.
 - The **Data Sources** button documents the provenance of each category.
 - `Battery Impact (Est.)` is explicitly a heuristic built from measured CPU,
   GPU, context-switch, and disk counters.
-- `taskmgr --verify-truth` performs 15 independent cross-checks and is part of
+- `taskmgr --verify-truth` performs 16 independent cross-checks and is part of
   the repository test suite.
 - Power-profile buttons call `powerprofilesctl set` and verify the result with
   `powerprofilesctl get`; they are hidden when the daemon is unavailable.

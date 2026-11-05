@@ -23,6 +23,7 @@ from pathlib import Path
 import psutil
 
 from .gpu import GpuCollector, GpuSnapshot
+from .psi import PsiCollector
 
 
 class PerformanceCollector:
@@ -523,6 +524,7 @@ class PerformanceCollector:
             "nvme_temp": round(nvme_temp, 1),
             "wifi_temp": round(wifi_temp, 1),
             "load_avg": (round(load1, 2), round(load5, 2), round(load15, 2)),
+            "psi": PsiCollector.sample(),
             "uptime_s": uptime_s,
             "ctxt_s": round(ctxt_s, 1),
             "intr_s": round(intr_s, 1),

@@ -165,6 +165,27 @@ class SparklineAreaChart(Gtk.DrawingArea):
             cr.show_text(self.sub_label)
 
 
+def add_tree_columns(
+    view: Gtk.TreeView,
+    columns: list[tuple[str, int, int, int]],
+    max_total_width: int = 1300,
+) -> None:
+    requested_total = sum(c[3] for c in columns) or 1
+    scale = min(1.0, float(max_total_width) / requested_total)
+    view.tm_columns = [tuple(c) for c in columns]
+    for title, text_col, sort_col, min_w in columns:
+        width = max(55, int(min_w * scale))
+        renderer = Gtk.CellRendererText()
+        renderer.set_property("ellipsize", Pango.EllipsizeMode.END)
+        col = Gtk.TreeViewColumn(title, renderer, text=text_col)
+        col.set_sort_column_id(sort_col)
+        col.set_resizable(True)
+        col.set_sizing(Gtk.TreeViewColumnSizing.FIXED)
+        col.set_fixed_width(width)
+        col.set_min_width(width)
+        view.append_column(col)
+
+
 def build_tree_view(
     store: Gtk.ListStore,
     columns: list[tuple[str, int, int, int]],
@@ -182,21 +203,7 @@ def build_tree_view(
     view = Gtk.TreeView(model=model_sort)
     view.set_headers_clickable(True)
     view.set_enable_search(False)
-
-    requested_total = sum(c[3] for c in columns) or 1
-    scale = min(1.0, float(max_total_width) / requested_total)
-
-    for title, text_col, sort_col, min_w in columns:
-        width = max(55, int(min_w * scale))
-        renderer = Gtk.CellRendererText()
-        renderer.set_property("ellipsize", Pango.EllipsizeMode.END)
-        col = Gtk.TreeViewColumn(title, renderer, text=text_col)
-        col.set_sort_column_id(sort_col)
-        col.set_resizable(True)
-        col.set_sizing(Gtk.TreeViewColumnSizing.FIXED)
-        col.set_fixed_width(width)
-        col.set_min_width(width)
-        view.append_column(col)
+    add_tree_columns(view, columns, max_total_width)
 
     scroll = Gtk.ScrolledWindow()
     scroll.set_vexpand(True)

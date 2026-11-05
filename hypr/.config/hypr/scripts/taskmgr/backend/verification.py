@@ -145,6 +145,22 @@ def _ps_process_count() -> int | None:
         return None
 
 
+def _psi_some(resource: str) -> float | None:
+    try:
+        for line in (
+            Path(f"/proc/pressure/{resource}").read_text(encoding="utf-8").splitlines()
+        ):
+            parts = line.split()
+            if parts and parts[0] == "some":
+                for part in parts[1:]:
+                    key, _, value = part.partition("=")
+                    if key == "avg10":
+                        return float(value)
+    except (OSError, ValueError):
+        pass
+    return None
+
+
 def run_truth_audit() -> list[dict]:
     results: list[dict] = []
     perf = PerformanceCollector()
@@ -245,6 +261,21 @@ def run_truth_audit() -> list[dict]:
                 abs(expected_rx - actual_rx) <= 10.0
                 and abs(expected_tx - actual_tx) <= 10.0,
                 "Tolerance 10 MiB because traffic continues between the two reads.",
+            )
+        )
+
+    # 5b. CPU PSI avg10 vs /proc/pressure/cpu
+    expected_psi = _psi_some("cpu")
+    actual_psi = perf_data.get("psi", {}).get("cpu", {}).get("some_avg10")
+    if expected_psi is not None and actual_psi is not None:
+        results.append(
+            _row(
+                "CPU PSI stall avg10 (%)",
+                "/proc/pressure/cpu",
+                round(expected_psi, 2),
+                round(float(actual_psi), 2),
+                abs(expected_psi - float(actual_psi)) <= 1.0,
+                "Tolerance 1 percentage point because PSI is a rolling average.",
             )
         )
 

@@ -9,6 +9,7 @@ import os
 import signal
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 # Ensure package imports resolve regardless of working directory
@@ -23,6 +24,7 @@ gi.require_version("Gdk", "4.0")
 from gi.repository import Gdk, GLib, Gtk
 
 from backend.doctor import SystemDoctor
+from backend.ebpf import PROBES
 from ui.window import PAGES_SPEC, TaskManagerWindow
 
 
@@ -33,12 +35,16 @@ class TaskManagerApp(Gtk.Application):
         smoke_test: bool = False,
         lifecycle_test: bool = False,
         power_test: bool = False,
+        async_test: bool = False,
+        responsive_test: bool = False,
     ) -> None:
         super().__init__(application_id="com.aditya.taskmgr")
         self.initial_page = initial_page
         self.smoke_test = smoke_test
         self.lifecycle_test = lifecycle_test
         self.power_test = power_test
+        self.async_test = async_test
+        self.responsive_test = responsive_test
         self.win: TaskManagerWindow | None = None
 
     def do_activate(self) -> None:
@@ -48,10 +54,103 @@ class TaskManagerApp(Gtk.Application):
 
         if self.power_test and self.win is not None:
             self._run_power_test()
+        elif self.responsive_test and self.win is not None:
+            self._run_responsive_test()
+        elif self.async_test and self.win is not None:
+            self._run_async_test()
         elif self.lifecycle_test and self.win is not None:
             self._run_lifecycle_test()
         elif self.smoke_test and self.win is not None:
             self._run_smoke_test()
+
+    def _run_responsive_test(self) -> None:
+        """Force compact mode, resize to 900x600, and verify the result."""
+        assert self.win is not None
+        # Simulate a 960x540 logical monitor to exercise the automatic path.
+        self.win._monitor_logical_size = lambda: (960.0, 540.0)
+        self.win._auto_compact_checked = False
+        self.win._maybe_auto_compact()
+        print(
+            f"RESPONSIVE_AUTO_COMPACT: {self.win._compact_mode}",
+            flush=True,
+        )
+        print(
+            f"RESPONSIVE_AUTO_DEFAULT_SIZE: {self.win.get_default_size()}",
+            flush=True,
+        )
+        self.win._apply_compact_mode(True)
+        min_width = self.win.measure(Gtk.Orientation.HORIZONTAL, -1).minimum
+        hidden = 0
+        visible = 0
+        for view, _kind in self.win._context_views:
+            for column in view.get_columns():
+                if column.get_visible():
+                    visible += 1
+                else:
+                    hidden += 1
+        print(f"RESPONSIVE_COMPACT_MIN_WIDTH: {min_width}", flush=True)
+        print(
+            f"RESPONSIVE_SIDEBAR_VISIBLE: {self.win.sidebar_box.get_visible()}",
+            flush=True,
+        )
+        print(
+            f"RESPONSIVE_COLUMNS: visible={visible} hidden={hidden}",
+            flush=True,
+        )
+        print(
+            f"RESPONSIVE_DROPDOWN_VISIBLE: {self.win.compact_page_dropdown.get_visible()}",
+            flush=True,
+        )
+        self.win.set_default_size(900, 600)
+
+        def resize_window() -> bool:
+            subprocess.Popen(
+                [
+                    "hyprctl",
+                    "dispatch",
+                    'hl.dsp.window.resize({ x = 900, y = 600, window = "class:com.aditya.taskmgr" })',
+                ],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            GLib.timeout_add(900, check)
+            return False
+
+        def check() -> bool:
+            if self.win is None:
+                return False
+            width, height = self.win.get_width(), self.win.get_height()
+            print(f"RESPONSIVE_RESIZED: {width}x{height}", flush=True)
+            passed = width <= 950 and not self.win.sidebar_box.get_visible()
+            print(
+                "RESPONSIVE_TEST_PASS" if passed else "RESPONSIVE_TEST_FAIL",
+                flush=True,
+            )
+            self.quit()
+            return False
+
+        GLib.timeout_add(400, resize_window)
+
+    def _run_async_test(self) -> None:
+        """Verify the background sampler populates the process table."""
+        assert self.win is not None
+        self.win._sync_sampling = False
+        self.win._select_page("processes")
+        self.win._refresh_all()
+
+        def check() -> bool:
+            if self.win is None:
+                return False
+            rows = len(self.win.proc_store)
+            print(f"ASYNC_TEST_PROCESS_ROWS: {rows}", flush=True)
+            print(
+                "ASYNC_TEST_PASS" if rows > 0 else "ASYNC_TEST_FAIL",
+                flush=True,
+            )
+            self.quit()
+            return False
+
+        GLib.timeout_add(1500, check)
 
     def _run_power_test(self) -> None:
         """Click each real power-profile button and verify the daemon state."""
@@ -87,6 +186,7 @@ class TaskManagerApp(Gtk.Application):
 
     def _run_smoke_test(self) -> None:
         assert self.win is not None
+        self.win._sync_sampling = True
         page_ids = [p[0] for p in PAGES_SPEC]
 
         def step(idx: int) -> bool:
@@ -112,6 +212,93 @@ class TaskManagerApp(Gtk.Application):
                         )
                         self.quit()
                         return False
+                if pid == "services":
+                    svc_rows = len(self.win.svc_store)
+                    io_rows = sum(
+                        1 for row in self.win.svc_store if row[9] != "-"
+                    )
+                    print(f"SMOKE_TEST_SERVICE_ROWS: {svc_rows}", flush=True)
+                    print(
+                        f"SMOKE_TEST_SERVICE_IO_ROWS: {io_rows}",
+                        flush=True,
+                    )
+                    print(
+                        "SMOKE_TEST_SERVICE_PRIV_BUTTON: "
+                        f"{self.win.svc_privileged_btn.get_sensitive()}",
+                        flush=True,
+                    )
+                    if svc_rows == 0:
+                        print(
+                            "SMOKE_TEST_FAIL: service table is empty",
+                            flush=True,
+                        )
+                        self.quit()
+                        return False
+                if pid == "power":
+                    print(
+                        f"SMOKE_TEST_RAPL_LABEL: {self.win.rapl_lbl.get_text()}",
+                        flush=True,
+                    )
+                    print(
+                        "SMOKE_TEST_RAPL_PRIV_BUTTON: "
+                        f"{self.win.rapl_privileged_btn.get_sensitive()}",
+                        flush=True,
+                    )
+                if pid == "hardware":
+                    print(
+                        f"SMOKE_TEST_CAPABILITIES: {len(self.win.cap_store)}",
+                        flush=True,
+                    )
+                    print(
+                        f"SMOKE_TEST_STORAGE_HEALTH_ROWS: {len(self.win.smart_store)}",
+                        flush=True,
+                    )
+                    print(
+                        f"SMOKE_TEST_EBPF_PROBES: {len(PROBES)}",
+                        flush=True,
+                    )
+                    print(
+                        f"SMOKE_TEST_FAN_CONTROLS: {len(self.win.fan_devices)}",
+                        flush=True,
+                    )
+                    print(
+                        "SMOKE_TEST_FAN_APPLY_SENSITIVE: "
+                        f"{self.win.fan_apply_btn.get_sensitive()}",
+                        flush=True,
+                    )
+                    print(
+                        "SMOKE_TEST_BATTERY_THRESHOLD_CONTROLS: "
+                        f"{len(self.win.battery_devices)}",
+                        flush=True,
+                    )
+                    print(
+                        "SMOKE_TEST_BATTERY_APPLY_SENSITIVE: "
+                        f"{self.win.battery_apply_btn.get_sensitive()}",
+                        flush=True,
+                    )
+                    ebpf_info = self.win.ebpf_runner.detect()
+                    priv = self.win.privileged_client
+                    print(
+                        "SMOKE_TEST_EBPF_GATE: "
+                        f"can_run={ebpf_info['can_run']} "
+                        f"root={ebpf_info['root']} btf={ebpf_info['btf']} "
+                        f"bpftrace={bool(ebpf_info['bpftrace'])} "
+                        f"pkexec_helper={priv.available}",
+                        flush=True,
+                    )
+                    print(
+                        "SMOKE_TEST_PRIVILEGED_HELPER: "
+                        f"available={priv.available} "
+                        f"installed={priv.installed_helper} "
+                        f"pkexec={bool(priv.pkexec)} "
+                        f"helper={priv.helper}",
+                        flush=True,
+                    )
+                    print(
+                        "SMOKE_TEST_EBPF_START_SENSITIVE: "
+                        f"{self.win.ebpf_start_btn.get_sensitive()}",
+                        flush=True,
+                    )
                 if pid == "processes":
                     rows = len(self.win.proc_store)
                     print(f"SMOKE_TEST_PROCESS_ROWS: {rows}", flush=True)
@@ -122,6 +309,19 @@ class TaskManagerApp(Gtk.Application):
                         )
                         self.quit()
                         return False
+                    self.win._switch_proc_mode("tree")
+                    self.win._refresh_all()
+                    tree_rows = len(self.win.proc_tree_store)
+                    print(f"SMOKE_TEST_TREE_ROWS: {tree_rows}", flush=True)
+                    if tree_rows == 0:
+                        print(
+                            "SMOKE_TEST_FAIL: process tree is empty",
+                            flush=True,
+                        )
+                        self.quit()
+                        return False
+                    self.win._switch_proc_mode("flat")
+                    self.win._refresh_all()
                     probe = os.environ.get("TASKMGR_SMOKE_PROBE_PID")
                     if probe and probe.isdigit():
                         found = any(
@@ -143,6 +343,42 @@ class TaskManagerApp(Gtk.Application):
                 GLib.timeout_add(120, lambda: step(idx + 1))
             else:
                 print("SMOKE_TEST_COMPLETE: ALL_9_PAGES_VERIFIED", flush=True)
+                print(
+                    f"SMOKE_TEST_CONTEXT_VIEWS: {self.win._context_view_count}",
+                    flush=True,
+                )
+                total_targets = (
+                    self.win._context_view_count
+                    + self.win._context_target_count
+                )
+                print(
+                    f"SMOKE_TEST_CONTEXT_TARGETS: {total_targets}",
+                    flush=True,
+                )
+                if self.win._context_view_count == 0:
+                    print(
+                        "SMOKE_TEST_FAIL: no table context menus were installed",
+                        flush=True,
+                    )
+                self.win._show_context_menu(
+                    self.win.proc_view,
+                    20,
+                    20,
+                    "Smoke-test Details",
+                    "echo smoke-test",
+                )
+                menu_open = self.win.context_menu.get_visible()
+                self.win._hide_context_menu()
+                menu_closed = not self.win.context_menu.get_visible()
+                print(
+                    f"SMOKE_TEST_CONTEXT_MENU: open={menu_open} closed={menu_closed}",
+                    flush=True,
+                )
+                if not (menu_open and menu_closed):
+                    print(
+                        "SMOKE_TEST_FAIL: in-window context menu did not open/close",
+                        flush=True,
+                    )
                 refresh_handled = self.win._on_capture_key(
                     None,
                     Gdk.KEY_r,
@@ -173,6 +409,7 @@ class TaskManagerApp(Gtk.Application):
         """Spawn a real process, prove it appears in the GUI store, kill it,
         and prove it disappears after the next refresh."""
         assert self.win is not None
+        self.win._sync_sampling = True
         proc = subprocess.Popen(
             ["bash", "-c", "exec -a taskmgr_lifecycle_probe sleep 30"]
         )
@@ -248,6 +485,31 @@ def main() -> int:
         action="store_true",
         help="Click each real power-profile button, verify the daemon state, and restore the original profile",
     )
+    parser.add_argument(
+        "--async-test",
+        action="store_true",
+        help="Verify the background sampler populates the process table without blocking",
+    )
+    parser.add_argument(
+        "--responsive-test",
+        action="store_true",
+        help="Force compact mode, resize the window to 900x600, and verify it fits",
+    )
+    parser.add_argument(
+        "--report",
+        action="store_true",
+        help="Write a JSON/Markdown/CSV diagnostic report and append a history snapshot",
+    )
+    parser.add_argument(
+        "--report-dir",
+        default=None,
+        help="Destination directory for --report (default: ~/.local/state/taskmgr/reports/<timestamp>)",
+    )
+    parser.add_argument(
+        "--waybar-json",
+        action="store_true",
+        help="Print one Waybar custom-module JSON object and exit",
+    )
     args, gtk_args = parser.parse_known_args()
 
     if args.doctor_json:
@@ -275,11 +537,50 @@ def main() -> int:
         )
         return 0 if failed == 0 else 1
 
+    if args.report:
+        from backend.report import write_report
+
+        paths = write_report(args.report_dir)
+        print(json.dumps(paths, indent=2))
+        return 0
+
+    if args.waybar_json:
+        from backend.performance import PerformanceCollector
+
+        collector = PerformanceCollector()
+        time.sleep(0.5)
+        perf = collector.sample()
+        battery = perf.get("battery", {})
+        text = f"CPU {perf['cpu_total']:.0f}%  RAM {perf['mem'].percent:.0f}%"
+        if battery.get("present"):
+            text += f"  BAT {battery['percent']}%"
+        tooltip = (
+            f"CPU: {perf['cpu_total']:.1f}%\n"
+            f"RAM: {perf['mem'].percent:.1f}%\n"
+            f"GPU: {perf['gpu'].busy_pct:.1f}%\n"
+            f"Network: ↓{perf['down_kbs']:.1f} ↑{perf['up_kbs']:.1f} KB/s\n"
+            f"Disk: R {perf['read_mbs']:.2f} W {perf['write_mbs']:.2f} MB/s"
+        )
+        if battery.get("present"):
+            tooltip += (
+                f"\nBattery: {battery['percent']}% "
+                f"({battery['watts']:.1f} W, {battery['remaining_str']})"
+            )
+        css_class = "normal"
+        if perf["cpu_total"] >= 80 or perf["mem"].percent >= 90:
+            css_class = "critical"
+        elif perf["cpu_total"] >= 50 or perf["mem"].percent >= 75:
+            css_class = "warning"
+        print(json.dumps({"text": text, "tooltip": tooltip, "class": css_class}))
+        return 0
+
     app = TaskManagerApp(
         initial_page=args.page,
         smoke_test=args.smoke_test,
         lifecycle_test=args.lifecycle_test,
         power_test=args.power_test,
+        async_test=args.async_test,
+        responsive_test=args.responsive_test,
     )
     # Install our own SIGINT handler before Gio.run() installs its fallback.
     # Without this, Gio re-raises the default KeyboardInterrupt after the main

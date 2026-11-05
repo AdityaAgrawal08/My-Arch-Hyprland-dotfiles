@@ -332,6 +332,5 @@ hl.window_rule({
   name   = "taskmgr-window-rules",
   match  = { class = "^com\\.aditya\\.taskmgr$" },
   float  = true,
-  size   = { 1150, 660 },
   center = true,
 })

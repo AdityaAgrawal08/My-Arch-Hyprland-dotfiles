@@ -7,9 +7,13 @@ import json
 import os
 import re
 import subprocess
+import time
 from datetime import datetime
 from pathlib import Path
 import psutil
+
+
+_RESOURCE_CACHE: dict[str, tuple[float, dict[str, dict]]] = {}
 
 
 # Persistent Process objects are required for psutil.cpu_percent(interval=None)
@@ -38,6 +42,194 @@ class ServicesCollector:
     """Queries systemd system/user services, timers, and tracks hyprland.lua autostart commands."""
 
     @staticmethod
+    def _read_proc_io(
+        pid: int, proc_root: str | Path = "/proc"
+    ) -> tuple[int, int] | None:
+        path = Path(proc_root) / str(pid) / "io"
+        try:
+            read_bytes = None
+            write_bytes = None
+            for line in path.read_text(
+                encoding="utf-8", errors="replace"
+            ).splitlines():
+                key, _, value = line.partition(":")
+                if key == "read_bytes":
+                    read_bytes = int(value.strip())
+                elif key == "write_bytes":
+                    write_bytes = int(value.strip())
+            if read_bytes is None or write_bytes is None:
+                return None
+            return read_bytes, write_bytes
+        except (OSError, ValueError):
+            return None
+
+    @staticmethod
+    def _sum_cgroup_proc_io(
+        cgroup: str,
+        cgroup_root: str | Path = "/sys/fs/cgroup",
+        proc_root: str | Path = "/proc",
+    ) -> tuple[int, int, str] | None:
+        """Aggregate /proc/<pid>/io for a service when every PID is visible.
+
+        This is a best-effort fallback for systems where the cgroup io
+        controller is not delegated. If any PID is hidden (hidepid), the total
+        would be an undercount, so the result is N/A instead.
+        """
+        procs_path = (
+            Path(cgroup_root) / cgroup.lstrip("/") / "cgroup.procs"
+        )
+        try:
+            pids = [
+                int(value)
+                for value in procs_path.read_text(
+                    encoding="utf-8", errors="replace"
+                ).split()
+            ]
+        except (OSError, ValueError):
+            return None
+        if not pids:
+            return None
+        total_read = 0
+        total_write = 0
+        readable = 0
+        unreadable: list[int] = []
+        for pid in pids:
+            io = ServicesCollector._read_proc_io(pid, proc_root)
+            if io is None:
+                unreadable.append(pid)
+                continue
+            total_read += io[0]
+            total_write += io[1]
+            readable += 1
+        if unreadable:
+            # Distinguish a PID that exited during sampling from one hidden by
+            # hidepid: only a PID still listed in cgroup.procs makes the total
+            # an undercount.
+            try:
+                remaining = {
+                    int(value)
+                    for value in procs_path.read_text(
+                        encoding="utf-8", errors="replace"
+                    ).split()
+                }
+            except (OSError, ValueError):
+                return None
+            if any(pid in remaining for pid in unreadable):
+                return None
+        if readable == 0:
+            return None
+        return total_read, total_write, f"{readable}/{readable} processes"
+
+    @staticmethod
+    def _get_service_resources(scope: str) -> dict[str, dict]:
+        """Read cgroup-backed CPU/memory/IO accounting via systemd."""
+        now = time.monotonic()
+        cached = _RESOURCE_CACHE.get(scope)
+        if cached and now - cached[0] < 10.0:
+            return cached[1]
+        cmd = ["systemctl"]
+        if scope == "user":
+            cmd.append("--user")
+        cmd += [
+            "show",
+            "--type=service",
+            "--all",
+            "-p",
+            "Id,MemoryCurrent,CPUUsageNSec,ControlGroup,IOReadBytes,IOWriteBytes",
+        ]
+        try:
+            out = subprocess.check_output(
+                cmd, text=True, stderr=subprocess.DEVNULL, timeout=5.0
+            )
+        except Exception:
+            return {}
+        resources: dict[str, dict] = {}
+        cur: dict[str, str] = {}
+
+        def flush() -> None:
+            unit = cur.get("Id", "")
+            if not unit:
+                return
+            mem = cur.get("MemoryCurrent", "[not set]")
+            cpu = cur.get("CPUUsageNSec", "[not set]")
+            cg = cur.get("ControlGroup", "")
+            mem_mb = None
+            cpu_s = None
+            try:
+                if mem not in ("[not set]", ""):
+                    mem_mb = round(int(mem) / (1024 * 1024), 1)
+            except ValueError:
+                pass
+            try:
+                if cpu not in ("[not set]", ""):
+                    cpu_s = round(int(cpu) / 1e9, 2)
+            except ValueError:
+                pass
+            io_read = io_write = None
+            io_source = ""
+            if cg:
+                try:
+                    for line in (
+                        Path(f"/sys/fs/cgroup{cg}/io.stat")
+                        .read_text(encoding="utf-8", errors="replace")
+                        .splitlines()
+                    ):
+                        for part in line.split()[1:]:
+                            k, _, v = part.partition("=")
+                            if k == "rbytes":
+                                io_read = (io_read or 0) + int(v)
+                            elif k == "wbytes":
+                                io_write = (io_write or 0) + int(v)
+                except (OSError, ValueError):
+                    pass
+                if io_read is not None:
+                    io_source = "cgroup io.stat"
+            if io_read is None:
+                try:
+                    raw_read = cur.get("IOReadBytes", "[not set]")
+                    if raw_read not in ("[not set]", ""):
+                        io_read = int(raw_read)
+                        io_source = "systemd IOReadBytes"
+                except ValueError:
+                    pass
+            if io_write is None:
+                try:
+                    raw_write = cur.get("IOWriteBytes", "[not set]")
+                    if raw_write not in ("[not set]", ""):
+                        io_write = int(raw_write)
+                        io_source = io_source or "systemd IOWriteBytes"
+                except ValueError:
+                    pass
+            if io_read is None and cg:
+                proc_io = ServicesCollector._sum_cgroup_proc_io(cg)
+                if proc_io is not None:
+                    io_read, io_write, source = proc_io
+                    io_source = f"per-PID /proc io ({source})"
+            resources[unit] = {
+                "memory_mb": mem_mb,
+                "cpu_s": cpu_s,
+                "io_read_mb": round(io_read / (1024 * 1024), 1)
+                if io_read is not None
+                else None,
+                "io_write_mb": round(io_write / (1024 * 1024), 1)
+                if io_write is not None
+                else None,
+                "io_source": io_source,
+                "control_group": cg,
+            }
+
+        for line in out.splitlines():
+            if not line.strip():
+                flush()
+                cur = {}
+            else:
+                key, _, value = line.partition("=")
+                cur[key] = value
+        flush()
+        _RESOURCE_CACHE[scope] = (now, resources)
+        return resources
+
+    @staticmethod
     def get_services(scope: str = "system") -> list[dict]:
         cmd = ["systemctl"]
         if scope == "user":
@@ -48,11 +240,13 @@ class ServicesCollector:
                 cmd, text=True, stderr=subprocess.DEVNULL, timeout=3.0
             )
             units = json.loads(out)
+            resources = ServicesCollector._get_service_resources(scope)
             rows = []
             for u in units:
                 unit_name = u.get("unit", "")
                 if not unit_name:
                     continue
+                res = resources.get(unit_name, {})
                 rows.append(
                     {
                         "unit": unit_name,
@@ -61,6 +255,12 @@ class ServicesCollector:
                         "active": u.get("active", ""),
                         "sub": u.get("sub", ""),
                         "description": u.get("description", ""),
+                        "memory_mb": res.get("memory_mb"),
+                        "cpu_s": res.get("cpu_s"),
+                        "io_read_mb": res.get("io_read_mb"),
+                        "io_write_mb": res.get("io_write_mb"),
+                        "io_source": res.get("io_source", ""),
+                        "control_group": res.get("control_group", ""),
                     }
                 )
             rows.sort(key=lambda x: (0 if x["active"] == "active" else 1, x["unit"]))
