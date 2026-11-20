@@ -39,8 +39,8 @@ class WallpaperPanel(QWidget):
         self._view.setResizeMode(QListView.Adjust)
         self._view.setFlow(QListView.LeftToRight)
         self._view.setSpacing(10)
-        self._view.setIconSize(QSize(230, 105))
-        self._view.setGridSize(QSize(255, 165))
+        self._view.setIconSize(QSize(180, 75))
+        self._view.setGridSize(QSize(195, 130))
         self._view.itemClicked.connect(self._on_click)
 
         self._empty = QLabel("No wallpapers found in the theme assets directory.")
@@ -76,8 +76,8 @@ class WallpaperPanel(QWidget):
         self._mode = "grid" if use_grid else "list"
         if use_grid:
             self._view.setViewMode(QListView.IconMode)
-            self._view.setIconSize(QSize(230, 105))
-            self._view.setGridSize(QSize(255, 165))
+            self._view.setIconSize(QSize(180, 75))
+            self._view.setGridSize(QSize(195, 130))
             self._view.setFlow(QListView.LeftToRight)
         else:
             self._view.setViewMode(QListView.ListMode)
@@ -95,7 +95,7 @@ class WallpaperPanel(QWidget):
             pixmap = QPixmap(str(entry.get("thumb") or path))
             icon = QIcon()
             if not pixmap.isNull():
-                target = QSize(345, 160) if self._mode == "grid" else QSize(84, 60)
+                target = QSize(270, 115) if self._mode == "grid" else QSize(84, 60)
                 scaled = pixmap.scaled(
                     target, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation
                 )

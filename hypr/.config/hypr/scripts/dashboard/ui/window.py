@@ -24,20 +24,23 @@ class DashboardWindow(QWidget):
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
         self.setAttribute(Qt.WA_TranslucentBackground, True)
         self.setWindowTitle("Productivity Dashboard")
+        self._raised = False
 
         x, y, win_w, win_h, card_max_w = hypr_integration.dashboard_geometry()
         self.setGeometry(x, y, win_w, win_h)
 
+        card_h = min(600, win_h - 40)
+        card_top = 14
         self.card = Card(self)
         outer = QVBoxLayout(self)
         outer.setContentsMargins(
             max(12, (win_w - card_max_w) // 2),
-            8,
+            card_top,
             max(12, (win_w - card_max_w) // 2),
-            18,
+            max(12, win_h - card_top - card_h),
         )
         outer.addWidget(self.card, 0, Qt.AlignCenter)
-        self.card.setFixedSize(card_max_w, max(480, win_h - 26))
+        self.card.setFixedSize(card_max_w, card_h)
 
         card_layout = QVBoxLayout(self.card)
         card_layout.setContentsMargins(20, 16, 20, 16)
@@ -62,13 +65,14 @@ class DashboardWindow(QWidget):
         grid.setRowStretch(0, 5)
         grid.setRowStretch(1, 4)
         grid.setRowStretch(2, 4)
-        grid.setRowMinimumHeight(0, 255)
-        grid.setRowMinimumHeight(1, 180)
-        grid.setRowMinimumHeight(2, 150)
+        grid.setRowMinimumHeight(0, 230)
+        grid.setRowMinimumHeight(1, 145)
+        grid.setRowMinimumHeight(2, 145)
         card_layout.addLayout(grid)
 
     def showEvent(self, event) -> None:  # type: ignore[no-untyped-def]
         super().showEvent(event)
+        self._raised = False
         QTimer.singleShot(180, self._place)
         QTimer.singleShot(700, self._place)
         fade_in(self.card, duration=240)
@@ -77,6 +81,9 @@ class DashboardWindow(QWidget):
         x, y, win_w, win_h, _ = hypr_integration.dashboard_geometry()
         address = hypr_integration.window_address()
         hypr_integration.place_window(address, x, y, win_w, win_h)
+        if not self._raised and address:
+            hypr_integration.raise_window(address)
+            self._raised = True
 
     def reload_state(self) -> None:
         self.state = store.load()

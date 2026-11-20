@@ -99,6 +99,24 @@ def place_window(address: str, x: int, y: int, width: int, height: int) -> None:
             return
 
 
+def raise_window(address: str) -> None:
+    if not address:
+        return
+    for command in (
+        f"focuswindow,address:{address}",
+        f"alterzorder top,address:{address}",
+    ):
+        try:
+            subprocess.run(
+                ["hyprctl", "dispatch", command],
+                check=False,
+                capture_output=True,
+                timeout=5,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return
+
+
 def dashboard_geometry() -> tuple[int, int, int, int, int]:
     """Return (window_x, window_y, window_w, window_h, card_max_width)."""
     geo = display_geometry()
@@ -106,4 +124,4 @@ def dashboard_geometry() -> tuple[int, int, int, int, int]:
     top = int(geo["bar_bottom"])
     width = int(geo["width"])
     height = max(320, int(geo["height"]) - top)
-    return x, top, width, height, min(1100, width - 48)
+    return x, top, width, height, min(880, width - 96)

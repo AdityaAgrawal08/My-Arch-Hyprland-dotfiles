@@ -34,7 +34,7 @@ class TaskRow(QFrame):
     def __init__(self, todo: Todo, manage: bool = False) -> None:
         super().__init__()
         self.setObjectName("task-row")
-        self.setFixedHeight(46)
+        self.setFixedHeight(42)
 
         row = QHBoxLayout(self)
         row.setContentsMargins(6, 2, 6, 2)
@@ -175,7 +175,7 @@ class TodoPanel(QWidget):
             self._list.clear()
             for todo in self.state.todos:
                 item = QListWidgetItem()
-                item.setSizeHint(QSize(200, 46))
+                item.setSizeHint(QSize(200, 42))
                 row = TaskRow(todo, manage=self._manage)
                 row.toggled.connect(self._toggle)
                 row.edit_requested.connect(self._edit)

@@ -40,7 +40,7 @@ class SectionHeader(QWidget):
     ) -> None:
         super().__init__(parent)
         row = QHBoxLayout(self)
-        row.setContentsMargins(0, 0, 4, 8)
+        row.setContentsMargins(0, 0, 4, 4)
         row.setSpacing(6)
 
         icon_label = QLabel(icon)

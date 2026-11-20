@@ -31,7 +31,7 @@ class EventRow(QFrame):
     def __init__(self, event: Event) -> None:
         super().__init__()
         self.setObjectName("event-row")
-        self.setFixedHeight(54)
+        self.setFixedHeight(48)
 
         row = QHBoxLayout(self)
         row.setContentsMargins(6, 4, 6, 4)
@@ -115,7 +115,7 @@ class EventsPanel(QWidget):
             self._list.clear()
             for event in self._ordered():
                 item = QListWidgetItem()
-                item.setSizeHint(QSize(200, 54))
+                item.setSizeHint(QSize(200, 48))
                 item.setData(Qt.UserRole, event.id)
                 row = EventRow(event)
                 row.edit_requested.connect(self._edit)

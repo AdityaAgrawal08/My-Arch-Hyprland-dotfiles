@@ -24,7 +24,7 @@ class NoteRow(QFrame):
     def __init__(self, note: Note) -> None:
         super().__init__()
         self.setObjectName("note-row")
-        self.setFixedHeight(38)
+        self.setFixedHeight(34)
 
         row = QHBoxLayout(self)
         row.setContentsMargins(8, 2, 6, 2)
@@ -86,7 +86,7 @@ class NotesPanel(QWidget):
             self._list.clear()
             for note in self.state.notes:
                 item = QListWidgetItem()
-                item.setSizeHint(QSize(200, 38))
+                item.setSizeHint(QSize(200, 34))
                 item.setData(Qt.UserRole, note.id)
                 row = NoteRow(note)
                 row.edit_requested.connect(self._edit)
