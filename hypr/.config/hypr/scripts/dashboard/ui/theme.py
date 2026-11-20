@@ -198,6 +198,7 @@ QPushButton#row-action {
     max-height: 24px;
 }
 QPushButton#row-action { color: transparent; }
+QPushButton#row-action[always="true"] { color: %(faint)s; }
 QFrame#task-row:hover QPushButton#row-action,
 QFrame#note-row:hover QPushButton#row-action,
 QFrame#event-row:hover QPushButton#row-action { color: %(faint)s; }

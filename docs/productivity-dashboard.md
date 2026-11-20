@@ -41,6 +41,11 @@ dashboard/
 
 ## State
 
+Todo rows show only the task name; clicking a name opens the edit form. A task
+can hold subtasks that can be added, edited, deleted and struck through inside
+that form. When every subtask is struck, the parent task is struck automatically
+and the active count drops. Events can be edited or deleted from the event row.
+
 All data lives in `~/.local/share/productivity-dashboard/state.json`.
 Writes are atomic (temp file + `os.replace`) and guarded by an advisory
 `flock`. A missing or corrupt file falls back to an empty state.

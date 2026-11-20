@@ -27,6 +27,7 @@ def _format_moment(timestamp: float) -> str:
 
 class EventRow(QFrame):
     edit_requested = Signal(str)
+    delete_requested = Signal(str)
 
     def __init__(self, event: Event) -> None:
         super().__init__()
@@ -67,6 +68,11 @@ class EventRow(QFrame):
         edit = RowActionButton("✎", "Edit event")
         edit.clicked.connect(lambda: self.edit_requested.emit(event.id))
         row.addWidget(edit)
+
+        remove = RowActionButton("×", "Delete event", danger=True)
+        remove.setProperty("always", True)
+        remove.clicked.connect(lambda: self.delete_requested.emit(event.id))
+        row.addWidget(remove)
 
         self.setToolTip("Double-click to edit")
 
@@ -119,6 +125,7 @@ class EventsPanel(QWidget):
                 item.setData(Qt.UserRole, event.id)
                 row = EventRow(event)
                 row.edit_requested.connect(self._edit)
+                row.delete_requested.connect(self._delete)
                 self._list.addItem(item)
                 self._list.setItemWidget(item, row)
 
@@ -193,6 +200,13 @@ class EventsPanel(QWidget):
         if notify_at != previous_notify:
             event.notified = False
         return event
+
+    def _delete(self, event_id: str) -> None:
+        self.state.events = [
+            event for event in self.state.events if event.id != event_id
+        ]
+        save_state(self.state)
+        self._reload()
 
     def _add(self) -> None:
         event = self._form(None)

@@ -22,11 +22,28 @@ def _as_float(value: Any) -> float:
 
 
 @dataclass
+class Subtask:
+    id: str = field(default_factory=new_id)
+    name: str = ""
+    completed: bool = False
+
+    @classmethod
+    def from_dict(cls, data: Any) -> "Subtask":
+        data = data if isinstance(data, dict) else {}
+        return cls(
+            id=_as_str(data.get("id")) or new_id(),
+            name=_as_str(data.get("name")),
+            completed=bool(data.get("completed", False)),
+        )
+
+
+@dataclass
 class Todo:
     id: str = field(default_factory=new_id)
     name: str = ""
     description: str = ""
     completed: bool = False
+    subtasks: list[Subtask] = field(default_factory=list)
 
     @classmethod
     def from_dict(cls, data: Any) -> "Todo":
@@ -36,7 +53,15 @@ class Todo:
             name=_as_str(data.get("name")),
             description=_as_str(data.get("description")),
             completed=bool(data.get("completed", False)),
+            subtasks=[
+                Subtask.from_dict(item) for item in _as_list(data.get("subtasks"))
+            ],
         )
+
+    def sync_completion(self) -> None:
+        """A task with subtasks is complete only when all subtasks are."""
+        if self.subtasks:
+            self.completed = all(subtask.completed for subtask in self.subtasks)
 
 
 @dataclass
