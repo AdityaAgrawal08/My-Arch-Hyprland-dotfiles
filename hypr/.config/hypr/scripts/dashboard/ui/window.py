@@ -8,7 +8,7 @@ from ..core.models import DashboardState
 from .calendar_widget import CalendarPanel
 from .events_widget import EventsPanel
 from .notes_widget import NotesPanel
-from .theme import apply_theme, fade_in
+from .theme import apply_theme
 from .todo import TodoPanel
 from .wallpapers_widget import WallpaperPanel
 from .widgets import Card
@@ -75,7 +75,8 @@ class DashboardWindow(QWidget):
         self._raised = False
         QTimer.singleShot(180, self._place)
         QTimer.singleShot(700, self._place)
-        fade_in(self.card, duration=240)
+        # No opacity effect on the card: with a translucent top-level window
+        # Qt would cache the wallpaper behind it and show it through panels.
 
     def _place(self) -> None:
         x, y, win_w, win_h, _ = hypr_integration.dashboard_geometry()
@@ -86,7 +87,10 @@ class DashboardWindow(QWidget):
             self._raised = True
 
     def reload_state(self) -> None:
+        in_session_calendar = self.state.calendar
         self.state = store.load()
+        # Keep whatever month/day the user navigated to during this session.
+        self.state.calendar = in_session_calendar
         self.todo.set_state(self.state)
         self.calendar.set_state(self.state)
         self.wallpapers.set_state(self.state)

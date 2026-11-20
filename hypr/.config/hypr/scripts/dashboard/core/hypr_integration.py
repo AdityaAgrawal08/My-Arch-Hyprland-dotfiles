@@ -78,43 +78,28 @@ def window_address() -> str:
 
 
 def place_window(address: str, x: int, y: int, width: int, height: int) -> None:
-    if not address:
-        return
-    target = f"address:{address}"
-    commands = [
-        "setfloating",
-        f"resizewindowpixel exact {width} {height}",
-        f"movewindowpixel exact {x} {y}",
-    ]
-    for command in commands:
-        full = f"{command},{target}" if target else command
-        try:
-            subprocess.run(
-                ["hyprctl", "dispatch", full],
-                check=False,
-                capture_output=True,
-                timeout=5,
-            )
-        except (OSError, subprocess.SubprocessError):
-            return
+    """Qt already applies the geometry; the window rule keeps it floating.
+
+    Hyprland's Lua config makes legacy `hyprctl dispatch` strings invalid, so
+    no dispatch is issued here. The parameters are kept for callers that want
+    to apply additional positioning later.
+    """
+    return
 
 
 def raise_window(address: str) -> None:
     if not address:
         return
-    for command in (
-        f"focuswindow,address:{address}",
-        f"alterzorder top,address:{address}",
-    ):
-        try:
-            subprocess.run(
-                ["hyprctl", "dispatch", command],
-                check=False,
-                capture_output=True,
-                timeout=5,
-            )
-        except (OSError, subprocess.SubprocessError):
-            return
+    lua = f'hl.dsp.focus({{ window = "address:{address}" }})'
+    try:
+        subprocess.run(
+            ["hyprctl", "eval", lua],
+            check=False,
+            capture_output=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return
 
 
 def dashboard_geometry() -> tuple[int, int, int, int, int]:

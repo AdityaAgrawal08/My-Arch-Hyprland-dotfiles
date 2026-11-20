@@ -1,9 +1,15 @@
 from __future__ import annotations
 
-from PySide6.QtCore import QByteArray, QMimeData, QPoint, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QFont
+from PySide6.QtCore import (
+    QEasingCurve,
+    QPoint,
+    QPropertyAnimation,
+    Qt,
+    QTimer,
+    Signal,
+)
+from PySide6.QtGui import QColor, QFont, QMouseEvent
 from PySide6.QtWidgets import (
-    QAbstractItemView,
     QDialog,
     QFrame,
     QGraphicsDropShadowEffect,
@@ -14,23 +20,43 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QPlainTextEdit,
     QPushButton,
+    QScrollArea,
     QVBoxLayout,
     QWidget,
 )
 
 from ..core.models import DashboardState, Subtask, Todo, new_id
 from ..core.store import save as save_state
-from .theme import COLORS, fade_swap
-from .widgets import Card, IconButton, RoundCheckBox, RowActionButton, SectionHeader
+from .theme import COLORS
+from .widgets import Card, IconButton, RowActionButton, RoundCheckBox, SectionHeader
 
-MIME = "application/x-dashboard-todo-id"
+ROW_H = 42
+PITCH = 44
+DRAG_THRESHOLD = 5
 
 
 class ClickableLabel(QLabel):
+    """Emits `clicked` on a press+release in the same spot; ignores press so
+    the parent TaskRow can use it to start a drag."""
+
     clicked = Signal()
 
+    def __init__(self, text: str = "") -> None:
+        super().__init__(text)
+        self.setTextInteractionFlags(Qt.NoTextInteraction)
+        self._press_pos = None
+
     def mousePressEvent(self, event) -> None:  # type: ignore[no-untyped-def]
-        self.clicked.emit()
+        self._press_pos = event.position().toPoint()
+        super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event) -> None:  # type: ignore[no-untyped-def]
+        if self._press_pos is not None:
+            moved = (event.position().toPoint() - self._press_pos).manhattanLength()
+            if moved < DRAG_THRESHOLD:
+                self.clicked.emit()
+        self._press_pos = None
+        super().mouseReleaseEvent(event)
 
 
 class SubtaskRow(QFrame):
@@ -74,7 +100,6 @@ class SubtaskRow(QFrame):
         remove = RowActionButton("×", "Delete subtask", danger=True)
         remove.clicked.connect(lambda: self.removed.emit(self._item))  # type: ignore[arg-type]
         row.addWidget(remove)
-
         self._check = check
 
     @property
@@ -98,7 +123,6 @@ class TaskDialog(QDialog):
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(14, 14, 14, 14)
-
         frame = Card()
         frame.setObjectName("dialog")
         shadow = QGraphicsDropShadowEffect(frame)
@@ -162,6 +186,8 @@ class TaskDialog(QDialog):
 
     def _add_subtask(self, subtask: Subtask | None = None) -> None:
         item = QListWidgetItem()
+        from PySide6.QtCore import QSize
+
         item.setSizeHint(QSize(200, 34))
         row = SubtaskRow(subtask, item)
         row.removed.connect(self._remove_subtask)
@@ -213,7 +239,8 @@ class TaskRow(QFrame):
     def __init__(self, todo: Todo, manage: bool = False) -> None:
         super().__init__()
         self.setObjectName("task-row")
-        self.setFixedHeight(42)
+        self.setFixedHeight(ROW_H)
+        self._owner: TodoList | None = None
 
         row = QHBoxLayout(self)
         row.setContentsMargins(6, 2, 6, 2)
@@ -232,7 +259,7 @@ class TaskRow(QFrame):
         name = ClickableLabel(todo.name or "Untitled task")
         if todo.completed:
             name.setObjectName("struck")
-        name.setToolTip("Click to edit task and subtasks")
+        name.setToolTip("Click to edit • drag to reorder")
         name.clicked.connect(lambda: self.edit_requested.emit(todo.id))
         row.addWidget(name, 1)
 
@@ -243,57 +270,202 @@ class TaskRow(QFrame):
         remove = RowActionButton("×", "Delete task", danger=True)
         remove.clicked.connect(lambda: self.delete_requested.emit(todo.id))
         row.addWidget(remove)
-
         for button in (edit, remove):
             button.setVisible(manage)
 
+    def mousePressEvent(self, event) -> None:  # type: ignore[no-untyped-def]
+        if self._owner is not None:
+            self._owner._row_press(self, event)
+        event.accept()
+        super().mousePressEvent(event)
 
-class TodoList(QListWidget):
+    def mouseMoveEvent(self, event) -> None:  # type: ignore[no-untyped-def]
+        if self._owner is not None:
+            self._owner._row_move(self, event)
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event) -> None:  # type: ignore[no-untyped-def]
+        if self._owner is not None:
+            self._owner._row_release(self, event)
+        super().mouseReleaseEvent(event)
+
+
+class TodoList(QScrollArea):
+    """Animated, threshold-based drag reordering for task rows."""
+
     reorder_requested = Signal(str, int)
 
     def __init__(self) -> None:
         super().__init__()
-        self.setDragEnabled(True)
-        self.setAcceptDrops(True)
-        self.setDropIndicatorShown(True)
-        self.setDragDropMode(QAbstractItemView.DragDrop)
-        self.setDefaultDropAction(Qt.MoveAction)
-        self.setSelectionMode(QAbstractItemView.SingleSelection)
-        self.setVerticalScrollMode(QListWidget.ScrollPerPixel)
         self.setFrameShape(QFrame.NoFrame)
-        self.setSpacing(0)
+        self.setWidgetResizable(False)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.setStyleSheet("QScrollArea { background: transparent; border: none; }")
+        self.viewport().setStyleSheet("background: transparent;")
 
-    def mimeTypes(self) -> list[str]:
-        return [MIME, *super().mimeTypes()]
+        self._viewport = QWidget()
+        self._viewport.setObjectName("todo-viewport")
+        self._viewport.setStyleSheet("background: transparent;")
+        self.setWidget(self._viewport)
 
-    def mimeData(self, items: list[QListWidgetItem]) -> QMimeData:
-        mime = QMimeData()
-        if items:
-            mime.setData(MIME, QByteArray(str(items[0].data(Qt.UserRole)).encode()))
-        return mime
+        self.rows: list[TaskRow] = []
+        self._source = -1
+        self._target = -1
+        self._drag_row: TaskRow | None = None
+        self._grab_y = 0.0
+        self._dragging = False
+        self._animating = False
+        self._animations: dict[TaskRow, QPropertyAnimation] = {}
+        self._finish_animation: QPropertyAnimation | None = None
 
-    def dragEnterEvent(self, event) -> None:  # type: ignore[no-untyped-def]
-        if event.mimeData().hasFormat(MIME):
-            event.acceptProposedAction()
-        else:
-            super().dragEnterEvent(event)
+    def resizeEvent(self, event) -> None:  # type: ignore[no-untyped-def]
+        super().resizeEvent(event)
+        self._viewport.setFixedWidth(self.viewport().width())
+        self._viewport.setFixedHeight(max(ROW_H, len(self.rows) * PITCH))
+        for row in self.rows:
+            row.resize(self._viewport.width(), ROW_H)
 
-    def dragMoveEvent(self, event) -> None:  # type: ignore[no-untyped-def]
-        if event.mimeData().hasFormat(MIME):
-            event.setDropAction(Qt.MoveAction)
-            event.accept()
-        else:
-            super().dragMoveEvent(event)
+    def set_rows(self, rows: list[TaskRow]) -> None:
+        self._stop_animations()
+        for old in self.rows:
+            old.setParent(None)
+            old.deleteLater()
+        self.rows = rows
+        for index, row in enumerate(rows):
+            row._owner = self
+            row.setParent(self._viewport)
+            row.move(0, index * PITCH)
+            row.show()
+        self._viewport.setFixedWidth(self.viewport().width())
+        self._viewport.setFixedHeight(max(ROW_H, len(rows) * PITCH))
+        for row in rows:
+            row.resize(self._viewport.width(), ROW_H)
 
-    def dropEvent(self, event) -> None:  # type: ignore[no-untyped-def]
-        if not event.mimeData().hasFormat(MIME):
-            super().dropEvent(event)
+    def _stop_animations(self) -> None:
+        for animation in self._animations.values():
+            animation.stop()
+        self._animations.clear()
+        if self._finish_animation is not None:
+            self._finish_animation.stop()
+            self._finish_animation = None
+
+    def _animate_to(self, row: TaskRow, y: int, duration: int = 170) -> None:
+        previous = self._animations.get(row)
+        if previous is not None:
+            previous.stop()
+        animation = QPropertyAnimation(row, b"pos", self)
+        animation.setDuration(duration)
+        animation.setEasingCurve(QEasingCurve.OutCubic)
+        animation.setStartValue(row.pos())
+        animation.setEndValue(QPoint(row.x(), y))
+        animation.start()
+        self._animations[row] = animation
+
+    def _row_press(self, row: TaskRow, event: QMouseEvent) -> None:
+        if self._animating or event.button() != Qt.LeftButton:
             return
-        raw = bytes(event.mimeData().data(MIME)).decode("utf-8", "replace")
-        index = self.indexAt(event.position().toPoint())
-        target = index.row() if index.isValid() else self.count()
-        event.acceptProposedAction()
-        self.reorder_requested.emit(raw, target)
+        if row not in self.rows:
+            return
+        self._source = self.rows.index(row)
+        self._target = self._source
+        self._drag_row = row
+        self._grab_y = event.position().y()
+        self._dragging = False
+
+    def _row_move(self, row: TaskRow, event: QMouseEvent) -> None:
+        if row is not self._drag_row or not (event.buttons() & Qt.LeftButton):
+            return
+        if not self._dragging:
+            if abs(event.position().y() - self._grab_y) < DRAG_THRESHOLD:
+                return
+            self._begin_drag()
+
+        viewport_pos = self._viewport.mapFromGlobal(event.globalPosition().toPoint())
+        top = max(
+            0, min(viewport_pos.y() - int(self._grab_y), (len(self.rows) - 1) * PITCH)
+        )
+        self._drag_row.move(0, top)
+        self._update_neighbours(top)
+
+    def _begin_drag(self) -> None:
+        self._dragging = True
+        row = self._drag_row
+        if row is None:
+            return
+        row.raise_()
+        row.setStyleSheet(
+            "background: #241c17; border: 1px solid #b97047; "
+            "border-radius: 8px; padding: 0 6px;"
+        )
+        shadow = QGraphicsDropShadowEffect(row)
+        shadow.setBlurRadius(22)
+        shadow.setOffset(0, 6)
+        shadow.setColor(QColor(0, 0, 0, 170))
+        row.setGraphicsEffect(shadow)
+
+    def _update_neighbours(self, dragged_top: int) -> None:
+        assert self._drag_row is not None
+        source = self._source
+        target = max(0, min(round(dragged_top / PITCH), len(self.rows) - 1))
+        self._target = target
+        for index, row in enumerate(self.rows):
+            if row is self._drag_row:
+                continue
+            if source < target and source < index <= target:
+                display = index - 1
+            elif source > target and target <= index < source:
+                display = index + 1
+            else:
+                display = index
+            if row.y() != display * PITCH:
+                self._animate_to(row, display * PITCH)
+
+    def _row_release(self, row: TaskRow, event: QMouseEvent) -> None:
+        if row is not self._drag_row:
+            return
+        self._drag_row = None
+        if not self._dragging:
+            self._source = -1
+            return
+        self._dragging = False
+        self._animating = True
+
+        row = self.rows[self._source]
+        committed = self._target != self._source
+        final_y = (self._target if committed else self._source) * PITCH
+
+        animation = QPropertyAnimation(row, b"pos", self)
+        animation.setDuration(300 if committed else 240)
+        animation.setEasingCurve(
+            QEasingCurve.OutBack if committed else QEasingCurve.OutCubic
+        )
+        animation.setStartValue(row.pos())
+        animation.setEndValue(QPoint(row.x(), final_y))
+        self._finish_animation = animation
+
+        source_id = str(row.property("task_id") or "")
+        target_index = self._target
+        source_index = self._source
+
+        def finished() -> None:
+            row.setStyleSheet("")
+            row.setGraphicsEffect(None)
+            self._finish_animation = None
+            self._animating = False
+            self._animations.clear()
+            if committed and source_id:
+                self.reorder_requested.emit(source_id, target_index)
+            elif source_index != target_index:
+                # Snap-back: neighbours may be mid-flight, restore their slots.
+                for index, other in enumerate(self.rows):
+                    other.move(0, index * PITCH)
+
+        animation.finished.connect(finished)
+        animation.start()
+
+    def task_id_of(self, row: TaskRow) -> str:
+        return str(row.property("task_id") or "")
 
 
 class TodoPanel(QWidget):
@@ -307,16 +479,14 @@ class TodoPanel(QWidget):
         self._manage_button.setCheckable(True)
 
         self.header = SectionHeader(
-            "☑",
-            "Todo",
-            state.active_todos,
-            (self._add_button, self._manage_button),
+            "☑", "Todo", state.active_todos, (self._add_button, self._manage_button)
         )
 
         self._list = TodoList()
         self._empty = QLabel("No tasks yet — press + to add one.")
         self._empty.setObjectName("subtext")
         self._empty.setAlignment(Qt.AlignCenter)
+
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(2)
@@ -341,23 +511,15 @@ class TodoPanel(QWidget):
         self._reload(animate=False)
 
     def _reload(self, animate: bool = True) -> None:
-        def build() -> None:
-            self._list.clear()
-            for todo in self.state.todos:
-                item = QListWidgetItem()
-                item.setSizeHint(QSize(200, 42))
-                item.setData(Qt.UserRole, todo.id)
-                row = TaskRow(todo, manage=self._manage)
-                row.toggled.connect(self._toggle)
-                row.edit_requested.connect(self._edit)
-                row.delete_requested.connect(self._delete)
-                self._list.addItem(item)
-                self._list.setItemWidget(item, row)
-
-        if animate:
-            fade_swap(self._list, build)
-        else:
-            build()
+        rows: list[TaskRow] = []
+        for todo in self.state.todos:
+            row = TaskRow(todo, manage=self._manage)
+            row.toggled.connect(self._toggle)
+            row.edit_requested.connect(self._edit)
+            row.delete_requested.connect(self._delete)
+            row.setProperty("task_id", todo.id)
+            rows.append(row)
+        self._list.set_rows(rows)
         self._empty.setVisible(not self.state.todos)
         self.header.set_count(self.state.active_todos)
 
@@ -375,16 +537,10 @@ class TodoPanel(QWidget):
         name = values["name"]
         if not name:
             return None
-
         subtasks = [
-            Subtask(
-                id=item["id"],
-                name=item["name"],
-                completed=bool(item["completed"]),
-            )
+            Subtask(id=item["id"], name=item["name"], completed=bool(item["completed"]))
             for item in values["subtasks"]
         ]
-
         if todo is None:
             todo = Todo(id=new_id(), name=name)
         todo.name = name
@@ -403,7 +559,7 @@ class TodoPanel(QWidget):
             for subtask in todo.subtasks:
                 subtask.completed = completed
         self._persist()
-        self._reload()
+        self._reload(animate=False)
 
     def _add(self) -> None:
         todo = self._form(None)
@@ -433,12 +589,11 @@ class TodoPanel(QWidget):
         )
         if source is None:
             return
-        insert_at = max(0, min(target, len(self.state.todos)))
-        if source < insert_at:
-            insert_at -= 1
+        insert_at = max(0, min(target, len(self.state.todos) - 1))
         if source == insert_at:
+            self._reload(animate=False)
             return
         todo = self.state.todos.pop(source)
         self.state.todos.insert(insert_at, todo)
         self._persist()
-        self._reload()
+        self._reload(animate=False)

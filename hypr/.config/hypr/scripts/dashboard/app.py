@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import signal
 import sys
+from datetime import date
 
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
 from .core import events, ipc
 from .core.hypr_integration import WINDOW_CLASS
+from .core.models import CalendarSelection
 from .core.store import load
 from .ui.theme import apply_theme
 from .ui.window import DashboardWindow
@@ -28,7 +30,13 @@ class DashboardApp:
         # Catch up on missed events/notifications before the first paint.
         events.check_all(send=True)
 
-        self.window = DashboardWindow(load())
+        state = load()
+        today = date.today()
+        # Calendar always opens on today; navigation is session-only.
+        state.calendar = CalendarSelection(
+            selected=today.isoformat(), year=today.year, month=today.month
+        )
+        self.window = DashboardWindow(state)
         self._timer = QTimer()
         self._timer.setInterval(60_000)
         self._timer.timeout.connect(self._tick)
