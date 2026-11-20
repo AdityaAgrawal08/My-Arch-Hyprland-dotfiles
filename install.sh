@@ -1042,6 +1042,15 @@ enable_services() {
   # User services.  They need a live user D-Bus session; on a fresh TTY this
   # may not exist yet, so failure is non-fatal.
   export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+
+  # The dashboard notification units ship inside the hypr Stow package.
+  local dashboard_units="$HOME/.config/hypr/scripts/dashboard/systemd"
+  local systemd_user="$HOME/.config/systemd/user"
+  if [[ -d "$dashboard_units" ]]; then
+    mkdir -p "$systemd_user"
+    cp -f "$dashboard_units"/*.service "$dashboard_units"/*.timer "$systemd_user/" 2>/dev/null || true
+  fi
+
   if [[ -S "$XDG_RUNTIME_DIR/bus" ]]; then
     say "Enabling user services"
     systemctl --user daemon-reload || true
@@ -1053,7 +1062,8 @@ enable_services() {
     done
 
     # The trash timers only exist after the trash package has been stowed.
-    for dm in trash-age.timer trash-clean.timer trash-notify.timer; do
+    for dm in trash-age.timer trash-clean.timer trash-notify.timer \
+              productivity-dashboard-notify.timer; do
       if systemctl --user cat "$dm" >/dev/null 2>&1; then
         systemctl --user enable --now "$dm" || warn "Could not enable user timer $dm"
       fi
@@ -1062,6 +1072,7 @@ enable_services() {
     warn "No user D-Bus session found; log in graphically and run:"
     warn "  systemctl --user enable --now pipewire.socket pipewire-pulse.socket wireplumber.service"
     warn "  systemctl --user enable --now trash-age.timer trash-clean.timer trash-notify.timer"
+    warn "  systemctl --user enable --now productivity-dashboard-notify.timer"
   fi
 }
 
@@ -1230,7 +1241,7 @@ main() {
     fish nvim git stow sqlite3
     notify-send playerctl brightnessctl wpctl grim slurp zathura imv mpv
     starship jq python3 gcc pkg-config magick ffmpeg ffprobe
-    taskmgr sysmon
+    taskmgr sysmon productivity-dashboard
     doc docs pdfmerge docx2pdf pdf2docx pdftotext pdftoppm gs
   )
   local cmd missing=()

@@ -7,3 +7,9 @@
 
 # Stored deleted files (content-addressed storage)
 .local/share/trash-system/objects/
+
+# Dashboard notification units are installed here at deploy time by install.sh
+# from hypr/.config/hypr/scripts/dashboard/systemd/.
+.config/systemd/user/productivity-dashboard-notify.service
+.config/systemd/user/productivity-dashboard-notify.timer
+.config/systemd/user/timers.target.wants/productivity-dashboard-notify.timer

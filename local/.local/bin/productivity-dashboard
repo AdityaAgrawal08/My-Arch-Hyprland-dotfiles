@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# Toggle the productivity dashboard from Waybar (or launch it from a shell).
+set -uo pipefail
+
+APP="$HOME/.config/hypr/scripts/dashboard/main.py"
+PYTHON="$(command -v python3 || printf '/usr/bin/python3')"
+
+# Headless mode used by the systemd user timer.
+if [[ "${1:-}" == "--check-notifications" ]]; then
+    exec "$PYTHON" "$APP" --check-notifications
+fi
+
+RUNTIME="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+LOCK="$RUNTIME/productivity-dashboard.launch.lock"
+PIDFILE="$RUNTIME/productivity-dashboard.pid"
+CLOSEFILE="$RUNTIME/productivity-dashboard.close"
+mkdir -p "$RUNTIME" 2>/dev/null || true
+
+exec 9>"$LOCK"
+flock -n 9 || exit 0
+
+if [[ -f "$PIDFILE" ]]; then
+    pid="$(tr -dc '0-9' < "$PIDFILE" 2>/dev/null || true)"
+    if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null \
+        && tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null | grep -q 'dashboard/main.py'; then
+        touch "$CLOSEFILE" 2>/dev/null || true
+        exec 9>&-
+        exit 0
+    fi
+fi
+
+rm -f "$CLOSEFILE"
+export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-wayland}"
+export PYTHONUNBUFFERED=1
+
+"$PYTHON" "$APP" 9>&- &
+newpid=$!
+printf '%s\n' "$newpid" > "$PIDFILE"
+
+# Release the launch lock so the next click can toggle the running instance.
+exec 9>&-
+
+wait "$newpid" || true
+rm -f "$PIDFILE" "$CLOSEFILE"

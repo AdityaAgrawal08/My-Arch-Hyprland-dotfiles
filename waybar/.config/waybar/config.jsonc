@@ -92,7 +92,8 @@
   },
   "clock": {
     "format": "{:%H:%M  |  %d-%m-%Y}",
-    "tooltip-format": "<big>{:%Y %B}</big>\n<tt><small>{calendar}</small></tt>"
+    "tooltip-format": "<big>{:%Y %B}</big>\n<tt><small>{calendar}</small></tt>",
+    "on-click": "$HOME/.local/bin/productivity-dashboard"
   },
   "cpu": {
     "format": "{usage}% ",

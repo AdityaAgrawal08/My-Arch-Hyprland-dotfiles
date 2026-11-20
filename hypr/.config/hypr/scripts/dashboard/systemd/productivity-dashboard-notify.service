@@ -1,0 +1,8 @@
+[Unit]
+Description=Productivity dashboard event notification check
+After=graphical-session.target
+ConditionPathExists=%h/.local/bin/productivity-dashboard
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/productivity-dashboard --check-notifications

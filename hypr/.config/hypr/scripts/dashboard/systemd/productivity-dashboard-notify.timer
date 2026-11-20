@@ -1,0 +1,10 @@
+[Unit]
+Description=Run productivity dashboard notification check every minute
+
+[Timer]
+OnCalendar=minutely
+Persistent=true
+Unit=productivity-dashboard-notify.service
+
+[Install]
+WantedBy=timers.target

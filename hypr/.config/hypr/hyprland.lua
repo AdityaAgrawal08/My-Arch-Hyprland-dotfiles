@@ -334,3 +334,11 @@ hl.window_rule({
   float  = true,
   center = true,
 })
+
+-- Productivity Dashboard (opened by clicking the Waybar clock)
+hl.window_rule({
+  name        = "productivity-dashboard-window-rules",
+  match       = { title = "^Productivity Dashboard$" },
+  float       = true,
+  border_size = 0,
+})
