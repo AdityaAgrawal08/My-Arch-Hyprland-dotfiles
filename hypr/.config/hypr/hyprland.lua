@@ -342,3 +342,13 @@ hl.window_rule({
   float       = true,
   border_size = 0,
 })
+
+-- Event notification popup (must stay floating so its top-right position is
+-- respected instead of being placed by the tile layout).
+hl.window_rule({
+  name        = "productivity-dashboard-notification-rules",
+  match       = { title = "^Event Notification$" },
+  float       = true,
+  move        = { "monitor_w - 396", "54" },
+  border_size = 0,
+})
