@@ -29,7 +29,7 @@ class DashboardWindow(QWidget):
         x, y, win_w, win_h, card_max_w = hypr_integration.dashboard_geometry()
         self.setGeometry(x, y, win_w, win_h)
 
-        card_h = min(600, win_h - 40)
+        card_h = min(650, win_h - 26)
         card_top = 14
         self.card = Card(self)
         outer = QVBoxLayout(self)
@@ -43,8 +43,8 @@ class DashboardWindow(QWidget):
         self.card.setFixedSize(card_max_w, card_h)
 
         card_layout = QVBoxLayout(self.card)
-        card_layout.setContentsMargins(20, 16, 20, 16)
-        card_layout.setSpacing(10)
+        card_layout.setContentsMargins(20, 12, 20, 12)
+        card_layout.setSpacing(8)
 
         self.todo = TodoPanel(state)
         self.calendar = CalendarPanel(state)
@@ -54,7 +54,7 @@ class DashboardWindow(QWidget):
 
         grid = QGridLayout()
         grid.setHorizontalSpacing(16)
-        grid.setVerticalSpacing(12)
+        grid.setVerticalSpacing(10)
         grid.addWidget(self.todo, 0, 0)
         grid.addWidget(self.calendar, 0, 1)
         grid.addWidget(self.wallpapers, 1, 0, 1, 2)
@@ -65,9 +65,9 @@ class DashboardWindow(QWidget):
         grid.setRowStretch(0, 5)
         grid.setRowStretch(1, 4)
         grid.setRowStretch(2, 4)
-        grid.setRowMinimumHeight(0, 230)
-        grid.setRowMinimumHeight(1, 145)
-        grid.setRowMinimumHeight(2, 145)
+        grid.setRowMinimumHeight(0, 300)
+        grid.setRowMinimumHeight(1, 160)
+        grid.setRowMinimumHeight(2, 140)
         card_layout.addLayout(grid)
 
     def showEvent(self, event) -> None:  # type: ignore[no-untyped-def]

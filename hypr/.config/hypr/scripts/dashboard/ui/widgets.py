@@ -41,7 +41,12 @@ class SectionHeader(QWidget):
         super().__init__(parent)
         row = QHBoxLayout(self)
         row.setContentsMargins(0, 0, 4, 4)
-        row.setSpacing(6)
+        row.setSpacing(8)
+
+        bar = QFrame()
+        bar.setObjectName("section-bar")
+        bar.setFixedSize(3, 24)
+        row.addWidget(bar)
 
         icon_label = QLabel(icon)
         icon_label.setObjectName("section-icon")
@@ -68,6 +73,51 @@ class SectionHeader(QWidget):
 
     def set_title(self, title: str) -> None:
         self._title_label.setText(title)
+
+
+class EmptyState(QFrame):
+    """Centered empty-state with an optional outline icon and two text lines."""
+
+    def __init__(
+        self,
+        title: str,
+        subtitle: str,
+        glyph: str | None = None,
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(6)
+        layout.addStretch(1)
+
+        if glyph:
+            box = QFrame()
+            box.setObjectName("empty-icon")
+            box.setFixedSize(52, 52)
+            icon = QLabel(glyph)
+            icon.setObjectName("empty-glyph")
+            icon.setAlignment(Qt.AlignCenter)
+            box_layout = QVBoxLayout(box)
+            box_layout.setContentsMargins(0, 0, 0, 0)
+            box_layout.addWidget(icon)
+            wrapper = QHBoxLayout()
+            wrapper.addStretch(1)
+            wrapper.addWidget(box)
+            wrapper.addStretch(1)
+            layout.addLayout(wrapper)
+            layout.addSpacing(4)
+
+        title_label = QLabel(title)
+        title_label.setObjectName("empty-title")
+        title_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(title_label)
+
+        sub_label = QLabel(subtitle)
+        sub_label.setObjectName("empty-sub")
+        sub_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(sub_label)
+        layout.addStretch(1)
 
 
 class IconButton(QPushButton):

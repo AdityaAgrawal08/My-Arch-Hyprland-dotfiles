@@ -14,7 +14,13 @@ from PySide6.QtWidgets import (
 from ..core.models import DashboardState, Note, new_id
 from ..core.store import save as save_state
 from .theme import COLORS, fade_swap
-from .widgets import FieldDialog, IconButton, RowActionButton, SectionHeader
+from .widgets import (
+    EmptyState,
+    FieldDialog,
+    IconButton,
+    RowActionButton,
+    SectionHeader,
+)
 
 
 class NoteRow(QFrame):
@@ -53,6 +59,8 @@ class NoteRow(QFrame):
 class NotesPanel(QWidget):
     def __init__(self, state: DashboardState) -> None:
         super().__init__()
+        self.setObjectName("panel")
+        self.setAttribute(Qt.WA_StyledBackground, True)
         self.state = state
         self._add_button = IconButton("+", "Add note")
         self.header = SectionHeader("", "Notes", None, (self._add_button,))
@@ -63,13 +71,11 @@ class NotesPanel(QWidget):
         self._list.itemDoubleClicked.connect(
             lambda item: self._edit(str(item.data(Qt.UserRole)))
         )
-        self._empty = QLabel("No notes yet — press + to add one.")
-        self._empty.setObjectName("subtext")
-        self._empty.setAlignment(Qt.AlignCenter)
+        self._empty = EmptyState("No notes yet", "Press + to add one.")
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(2)
+        layout.setContentsMargins(14, 10, 14, 12)
+        layout.setSpacing(4)
         layout.addWidget(self.header)
         layout.addWidget(self._empty)
         layout.addWidget(self._list, 1)

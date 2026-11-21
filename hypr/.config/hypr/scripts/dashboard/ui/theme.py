@@ -2,28 +2,29 @@ from __future__ import annotations
 
 from typing import Any
 
-from PySide6.QtCore import QEasingCurve, QPropertyAnimation, QParallelAnimationGroup
+from PySide6.QtCore import QEasingCurve, QParallelAnimationGroup, QPropertyAnimation
 from PySide6.QtWidgets import QGraphicsOpacityEffect, QWidget
 
 COLORS: dict[str, str] = {
-    "card": "#1a1512",
-    "card_alt": "#221a16",
-    "card_hover": "#2a201b",
-    "border": "#3b2c24",
+    "card": "#101010",
+    "panel": "#181513",
+    "panel_alt": "#201915",
+    "panel_hover": "#2a201b",
+    "border": "#3a2c24",
     "border_soft": "#2d231e",
     "text": "#f4eae2",
-    "muted": "#a08d80",
-    "faint": "#6f5e53",
+    "muted": "#9d8b7e",
+    "faint": "#6d5d53",
     "accent": "#e8a06a",
     "accent_hover": "#f4b98d",
     "accent_dark": "#b97047",
-    "accent_soft": "rgba(232,160,106,0.15)",
+    "accent_soft": "rgba(232,160,106,0.18)",
     "on_accent": "#1a1009",
     "danger": "#ec6b62",
     "danger_soft": "rgba(236,107,98,0.14)",
     "ok": "#7fc99a",
     "info": "#7aa7e8",
-    "shadow": "rgba(0,0,0,160)",
+    "shadow": "rgba(0,0,0,170)",
 }
 
 FONT = '"Inter", "Adwaita Sans", "Noto Sans", sans-serif'
@@ -43,63 +44,81 @@ QFrame#card {
     border-radius: 14px;
 }
 
+QWidget#panel {
+    background: %(panel)s;
+    border: 1px solid %(border)s;
+    border-radius: 12px;
+}
+
+/* Section headers */
+QFrame#section-bar {
+    background: %(accent)s;
+    border-radius: 2px;
+    max-width: 3px;
+    min-width: 3px;
+}
 QLabel#section-icon {
-    font-size: 20px;
-    color: %(accent)s;
-    min-width: 24px;
-}
-
-QLabel#section-title {
     font-size: 18px;
-    font-weight: 700;
-    letter-spacing: 0.2px;
+    color: %(text)s;
+    min-width: 22px;
 }
-
-QLabel#count {
+QLabel#section-title {
     font-size: 16px;
     font-weight: 700;
-    color: %(accent)s;
+    letter-spacing: 0.2px;
+    color: %(text)s;
+}
+QLabel#count {
+    font-size: 15px;
+    font-weight: 600;
+    color: %(muted)s;
     margin-left: 2px;
 }
 
-QLabel#subtext {
-    font-size: 12px;
-    color: %(muted)s;
+/* Empty states */
+QFrame#empty-icon {
+    background: transparent;
+    border: 1px solid %(border)s;
+    border-radius: 10px;
 }
+QLabel#empty-glyph { font-size: 24px; color: %(text)s; }
+QLabel#empty-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: %(text)s;
+}
+QLabel#empty-sub { font-size: 12px; color: %(muted)s; }
 
+QLabel#subtext { font-size: 12px; color: %(muted)s; }
 QLabel#struck {
     font-size: 13px;
     color: %(muted)s;
     text-decoration: line-through;
 }
-
 QLabel#day-label {
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 600;
     color: %(muted)s;
 }
 
+/* Buttons */
 QPushButton#icon-btn {
-    background: %(card_alt)s;
+    background: %(panel_alt)s;
     border: 1px solid %(border)s;
     border-radius: 8px;
-    min-width: 30px;
-    max-width: 30px;
-    min-height: 28px;
-    max-height: 28px;
-    font-size: 14px;
+    min-width: 28px;
+    max-width: 28px;
+    min-height: 26px;
+    max-height: 26px;
+    font-size: 13px;
     color: %(muted)s;
 }
 QPushButton#icon-btn:hover {
     background: %(accent_soft)s;
     border-color: %(accent)s;
-    color: %(accent)s;
+    color: %(text)s;
 }
-QPushButton#icon-btn:checked {
-    background: %(accent)s;
-    border-color: %(accent)s;
-    color: %(on_accent)s;
-}
+QPushButton#icon-btn:checked,
 QPushButton#icon-btn[active="true"] {
     background: %(accent)s;
     border-color: %(accent)s;
@@ -124,17 +143,28 @@ QPushButton#ghost {
     border-radius: 8px;
     padding: 7px 16px;
 }
-QPushButton#ghost:hover { background: %(card_hover)s; color: %(text)s; }
+QPushButton#ghost:hover { background: %(panel_hover)s; color: %(text)s; }
 
+QPushButton#go {
+    background: %(accent_soft)s;
+    color: %(accent)s;
+    border: 1px solid %(accent_dark)s;
+    border-radius: 8px;
+    padding: 5px 12px;
+    font-weight: 700;
+}
+QPushButton#go:hover { background: %(accent)s; color: %(on_accent)s; }
+
+/* Calendar */
 QPushButton#day {
     background: transparent;
     border: 1px solid transparent;
     border-radius: 7px;
     font-size: 12px;
     font-weight: 600;
-    min-height: 24px;
+    min-height: 26px;
 }
-QPushButton#day:hover { background: %(card_hover)s; }
+QPushButton#day:hover { background: %(panel_hover)s; }
 QPushButton#day[adjacent="true"] { color: %(faint)s; }
 QPushButton#day[today="true"] { border: 1px solid %(accent_dark)s; }
 QPushButton#day[selected="true"] {
@@ -144,18 +174,27 @@ QPushButton#day[selected="true"] {
 }
 QPushButton#day[selected="true"]:hover { background: %(accent_hover)s; }
 
-QPushButton#go {
-    background: %(accent_soft)s;
-    color: %(accent)s;
-    border: 1px solid %(accent_dark)s;
-    border-radius: 8px;
-    padding: 6px 14px;
-    font-weight: 700;
+QFrame#divider {
+    background: %(border)s;
+    max-height: 1px;
+    min-height: 1px;
+    border: none;
 }
-QPushButton#go:hover { background: %(accent)s; color: %(on_accent)s; }
-
-QLineEdit, QDateTimeEdit, QPlainTextEdit {
-    background: %(card_alt)s;
+QFrame#date-field {
+    background: %(panel_alt)s;
+    border: 1px solid %(border)s;
+    border-radius: 8px;
+}
+QLabel#field-icon { color: %(muted)s; font-size: 14px; }
+QLineEdit {
+    background: transparent;
+    border: none;
+    padding: 5px 6px;
+    font-size: 12px;
+    selection-background-color: %(accent_dark)s;
+}
+QDateTimeEdit, QPlainTextEdit {
+    background: %(panel_alt)s;
     border: 1px solid %(border)s;
     border-radius: 8px;
     padding: 6px 10px;
@@ -167,13 +206,21 @@ QLineEdit:focus, QDateTimeEdit:focus, QPlainTextEdit:focus {
 }
 QPlainTextEdit { min-height: 64px; }
 
+/* Lists */
 QListWidget {
     background: transparent;
     border: none;
     padding: 0;
 }
-QListWidget::item { background: transparent; border: none; }
-QListWidget::item:selected { background: transparent; }
+QListWidget::item {
+    background: transparent;
+    border: 2px solid transparent;
+    border-radius: 8px;
+}
+QListWidget::item:selected {
+    background: transparent;
+    border: 2px solid %(accent)s;
+}
 QListWidget::item:hover { background: transparent; }
 
 QFrame#task-row, QFrame#note-row, QFrame#event-row {
@@ -182,22 +229,20 @@ QFrame#task-row, QFrame#note-row, QFrame#event-row {
     border-bottom: 1px solid %(border_soft)s;
 }
 QFrame#task-row:hover, QFrame#note-row:hover, QFrame#event-row:hover {
-    background: %(card_hover)s;
+    background: %(panel_hover)s;
     border-radius: 6px;
 }
-
 QPushButton#row-action {
     background: transparent;
     border: none;
     border-radius: 6px;
-    color: %(faint)s;
+    color: transparent;
     font-size: 14px;
     min-width: 24px;
     max-width: 24px;
     min-height: 24px;
     max-height: 24px;
 }
-QPushButton#row-action { color: transparent; }
 QPushButton#row-action[always="true"] { color: %(faint)s; }
 QFrame#task-row:hover QPushButton#row-action,
 QFrame#note-row:hover QPushButton#row-action,
@@ -207,35 +252,21 @@ QPushButton#row-action[danger="true"]:hover {
     background: %(danger_soft)s;
     color: %(danger)s;
 }
-
-QLabel#handle {
-    color: %(faint)s;
-    font-size: 15px;
-    min-width: 16px;
-    max-width: 16px;
-}
+QLabel#handle { color: %(faint)s; font-size: 15px; min-width: 16px; max-width: 16px; }
 
 QFrame#event-bar-upcoming { background: %(danger)s; border-radius: 2px; }
 QFrame#event-bar-completed { background: %(info)s; border-radius: 2px; }
 
+/* Dialog */
 QFrame#dialog {
-    background: %(card)s;
+    background: %(panel)s;
     border: 1px solid %(accent_dark)s;
     border-radius: 14px;
 }
+QLabel#dialog-title { font-size: 16px; font-weight: 700; color: %(text)s; }
+QLabel#field-label { font-size: 12px; font-weight: 600; color: %(muted)s; }
 
-QLabel#dialog-title {
-    font-size: 16px;
-    font-weight: 700;
-    color: %(text)s;
-}
-
-QLabel#field-label {
-    font-size: 12px;
-    font-weight: 600;
-    color: %(muted)s;
-}
-
+/* Scrollbars */
 QScrollBar:vertical {
     background: transparent;
     width: 8px;
@@ -249,7 +280,6 @@ QScrollBar::handle:vertical {
 QScrollBar::handle:vertical:hover { background: %(accent_dark)s; }
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
 QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: transparent; }
-
 QScrollBar:horizontal {
     background: transparent;
     height: 8px;
@@ -277,27 +307,23 @@ def fade_in(widget: QWidget, duration: int = 200, start: float = 0.0) -> None:
     animation.setEndValue(1.0)
     animation.setEasingCurve(QEasingCurve.OutCubic)
     animation.start()
-    widget._fade_animation = animation  # keep a reference alive
+    widget._fade_animation = animation
     widget._fade_effect = effect
 
 
 def fade_swap(widget: QWidget, callback) -> None:
-    """Fade out, run callback (which rebuilds content), then fade back in."""
     effect = QGraphicsOpacityEffect(widget)
     widget.setGraphicsEffect(effect)
     group = QParallelAnimationGroup(widget)
-
     out = QPropertyAnimation(effect, b"opacity", widget)
     out.setDuration(90)
     out.setStartValue(1.0)
     out.setEndValue(0.25)
-
     inn = QPropertyAnimation(effect, b"opacity", widget)
     inn.setDuration(140)
     inn.setStartValue(0.25)
     inn.setEndValue(1.0)
     inn.setEasingCurve(QEasingCurve.OutCubic)
-
     group.addAnimation(out)
     group.addAnimation(inn)
 

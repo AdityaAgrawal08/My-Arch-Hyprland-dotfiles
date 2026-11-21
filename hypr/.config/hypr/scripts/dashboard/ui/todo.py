@@ -28,7 +28,14 @@ from PySide6.QtWidgets import (
 from ..core.models import DashboardState, Subtask, Todo, new_id
 from ..core.store import save as save_state
 from .theme import COLORS
-from .widgets import Card, IconButton, RowActionButton, RoundCheckBox, SectionHeader
+from .widgets import (
+    Card,
+    EmptyState,
+    IconButton,
+    RowActionButton,
+    RoundCheckBox,
+    SectionHeader,
+)
 
 ROW_H = 42
 PITCH = 44
@@ -471,6 +478,8 @@ class TodoList(QScrollArea):
 class TodoPanel(QWidget):
     def __init__(self, state: DashboardState) -> None:
         super().__init__()
+        self.setObjectName("panel")
+        self.setAttribute(Qt.WA_StyledBackground, True)
         self.state = state
         self._manage = False
 
@@ -483,13 +492,11 @@ class TodoPanel(QWidget):
         )
 
         self._list = TodoList()
-        self._empty = QLabel("No tasks yet — press + to add one.")
-        self._empty.setObjectName("subtext")
-        self._empty.setAlignment(Qt.AlignCenter)
+        self._empty = EmptyState("No tasks yet", "Press + to add one.", glyph="☑")
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(2)
+        layout.setContentsMargins(14, 10, 14, 12)
+        layout.setSpacing(4)
         layout.addWidget(self.header)
         layout.addWidget(self._empty)
         layout.addWidget(self._list, 1)

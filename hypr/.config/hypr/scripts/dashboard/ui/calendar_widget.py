@@ -4,6 +4,7 @@ from datetime import date
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QFrame,
     QGridLayout,
     QHBoxLayout,
     QLabel,
@@ -22,6 +23,8 @@ from .widgets import IconButton, SectionHeader
 class CalendarPanel(QWidget):
     def __init__(self, state: DashboardState) -> None:
         super().__init__()
+        self.setObjectName("panel")
+        self.setAttribute(Qt.WA_StyledBackground, True)
         self.state = state
         selection = state.calendar
         self.year = selection.year or date.today().year
@@ -53,27 +56,41 @@ class CalendarPanel(QWidget):
             self._grid.addWidget(button, index // 7, index % 7)
             self._day_buttons.append(button)
 
+        divider = QFrame()
+        divider.setObjectName("divider")
+        divider.setFixedHeight(1)
+
         self._entry = QLineEdit()
         self._entry.setPlaceholderText("dd-mm-yyyy")
-        self._entry.setMaximumWidth(130)
         self._entry.returnPressed.connect(self._on_jump)
-        self._go = QPushButton("Go")
+        self._go = QPushButton("→")
         self._go.setObjectName("go")
+        self._go.setFixedSize(34, 30)
+        self._go.setToolTip("Jump to date")
         self._go.clicked.connect(self._on_jump)
 
+        field_icon = QLabel("▦")
+        field_icon.setObjectName("field-icon")
+        date_field = QFrame()
+        date_field.setObjectName("date-field")
+        field_row = QHBoxLayout(date_field)
+        field_row.setContentsMargins(8, 2, 4, 2)
+        field_row.setSpacing(6)
+        field_row.addWidget(field_icon)
+        field_row.addWidget(self._entry, 1)
+        field_row.addWidget(self._go)
+
         entry_row = QHBoxLayout()
-        entry_row.setContentsMargins(0, 6, 0, 0)
-        entry_row.setSpacing(8)
-        entry_row.addWidget(self._entry)
-        entry_row.addWidget(self._go)
-        entry_row.addStretch(1)
+        entry_row.setContentsMargins(0, 8, 0, 0)
+        entry_row.addWidget(date_field)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(14, 10, 14, 12)
         layout.setSpacing(4)
         layout.addWidget(self.header)
         layout.addLayout(weekdays)
         layout.addLayout(self._grid, 1)
+        layout.addWidget(divider)
         layout.addLayout(entry_row)
 
         self._prev.clicked.connect(lambda: self._change_month(-1))
