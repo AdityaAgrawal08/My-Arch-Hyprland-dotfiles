@@ -7,10 +7,8 @@ from ..core import hypr_integration, store
 from ..core.models import DashboardState
 from .calendar_widget import CalendarPanel
 from .events_widget import EventsPanel
-from .notes_widget import NotesPanel
 from .theme import apply_theme
 from .todo import TodoPanel
-from .wallpapers_widget import WallpaperPanel
 from .widgets import Card
 
 
@@ -48,26 +46,22 @@ class DashboardWindow(QWidget):
 
         self.todo = TodoPanel(state)
         self.calendar = CalendarPanel(state)
-        self.wallpapers = WallpaperPanel(state)
-        self.notes = NotesPanel(state)
         self.events = EventsPanel(state)
 
         grid = QGridLayout()
         grid.setHorizontalSpacing(16)
         grid.setVerticalSpacing(10)
-        grid.addWidget(self.todo, 0, 0)
+        # Todo spans the whole left column; Calendar keeps its top-right size
+        # and Events takes the enlarged bottom-right area.
+        grid.addWidget(self.todo, 0, 0, 2, 1)
         grid.addWidget(self.calendar, 0, 1)
-        grid.addWidget(self.wallpapers, 1, 0, 1, 2)
-        grid.addWidget(self.notes, 2, 0)
-        grid.addWidget(self.events, 2, 1)
+        grid.addWidget(self.events, 1, 1)
         grid.setColumnStretch(0, 1)
         grid.setColumnStretch(1, 1)
-        grid.setRowStretch(0, 5)
-        grid.setRowStretch(1, 4)
-        grid.setRowStretch(2, 4)
+        grid.setRowStretch(0, 0)
+        grid.setRowStretch(1, 1)
         grid.setRowMinimumHeight(0, 300)
-        grid.setRowMinimumHeight(1, 160)
-        grid.setRowMinimumHeight(2, 140)
+        grid.setRowMinimumHeight(1, 300)
         card_layout.addLayout(grid)
 
     def showEvent(self, event) -> None:  # type: ignore[no-untyped-def]
@@ -75,8 +69,6 @@ class DashboardWindow(QWidget):
         self._raised = False
         QTimer.singleShot(180, self._place)
         QTimer.singleShot(700, self._place)
-        # No opacity effect on the card: with a translucent top-level window
-        # Qt would cache the wallpaper behind it and show it through panels.
 
     def _place(self) -> None:
         x, y, win_w, win_h, _ = hypr_integration.dashboard_geometry()
@@ -93,8 +85,6 @@ class DashboardWindow(QWidget):
         self.state.calendar = in_session_calendar
         self.todo.set_state(self.state)
         self.calendar.set_state(self.state)
-        self.wallpapers.set_state(self.state)
-        self.notes.set_state(self.state)
         self.events.set_state(self.state)
 
     def mousePressEvent(self, event) -> None:  # type: ignore[no-untyped-def]

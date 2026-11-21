@@ -65,20 +65,6 @@ class Todo:
 
 
 @dataclass
-class Note:
-    id: str = field(default_factory=new_id)
-    text: str = ""
-
-    @classmethod
-    def from_dict(cls, data: Any) -> "Note":
-        data = data if isinstance(data, dict) else {}
-        return cls(
-            id=_as_str(data.get("id")) or new_id(),
-            text=_as_str(data.get("text")),
-        )
-
-
-@dataclass
 class Event:
     id: str = field(default_factory=new_id)
     name: str = ""
@@ -135,7 +121,6 @@ class CalendarSelection:
 class DashboardState:
     version: int = 1
     todos: list[Todo] = field(default_factory=list)
-    notes: list[Note] = field(default_factory=list)
     events: list[Event] = field(default_factory=list)
     calendar: CalendarSelection = field(default_factory=CalendarSelection)
 
@@ -147,7 +132,6 @@ class DashboardState:
         return {
             "version": self.version,
             "todos": [asdict(todo) for todo in self.todos],
-            "notes": [asdict(note) for note in self.notes],
             "events": [asdict(event) for event in self.events],
             "calendar": asdict(self.calendar),
         }
@@ -158,7 +142,6 @@ class DashboardState:
         return cls(
             version=int(data.get("version") or 1),
             todos=[Todo.from_dict(item) for item in _as_list(data.get("todos"))],
-            notes=[Note.from_dict(item) for item in _as_list(data.get("notes"))],
             events=[Event.from_dict(item) for item in _as_list(data.get("events"))],
             calendar=CalendarSelection.from_dict(data.get("calendar")),
         )

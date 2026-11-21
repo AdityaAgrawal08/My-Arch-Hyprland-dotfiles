@@ -223,12 +223,12 @@ QListWidget::item:selected {
 }
 QListWidget::item:hover { background: transparent; }
 
-QFrame#task-row, QFrame#note-row, QFrame#event-row {
+QFrame#task-row, QFrame#event-row {
     background: transparent;
     border: none;
     border-bottom: 1px solid %(border_soft)s;
 }
-QFrame#task-row:hover, QFrame#note-row:hover, QFrame#event-row:hover {
+QFrame#task-row:hover, QFrame#event-row:hover {
     background: %(panel_hover)s;
     border-radius: 6px;
 }
@@ -245,7 +245,6 @@ QPushButton#row-action {
 }
 QPushButton#row-action[always="true"] { color: %(faint)s; }
 QFrame#task-row:hover QPushButton#row-action,
-QFrame#note-row:hover QPushButton#row-action,
 QFrame#event-row:hover QPushButton#row-action { color: %(faint)s; }
 QPushButton#row-action:hover { background: %(accent_soft)s; color: %(accent)s; }
 QPushButton#row-action[danger="true"]:hover {

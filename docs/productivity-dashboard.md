@@ -4,9 +4,9 @@
 
 ## Purpose
 
-A five-section desktop dashboard (Todo, Calendar, Wallpapers, Notes, Events)
-opened by clicking the Waybar date/time module. It is a normal always-on-top
-Qt window, not a layer-shell overlay or a terminal UI.
+A three-section desktop dashboard (Todo, Calendar, Events) opened by clicking
+the Waybar date/time module. It is a normal always-on-top Qt window, not a
+layer-shell overlay or a terminal UI.
 
 ## Files
 
@@ -25,18 +25,17 @@ dashboard/
 ├── main.py          # GUI and --check-notifications entry points
 ├── app.py           # QApplication, periodic event check, SIGTERM handling
 ├── core/
-│   ├── models.py    # Todo, Note, Event, CalendarSelection, DashboardState
+│   ├── models.py    # Todo, Subtask, Event, CalendarSelection, DashboardState
 │   ├── store.py     # locked, atomic JSON persistence
 │   ├── calendar_logic.py
 │   ├── events.py    # deadline completion + notification dedupe
-│   ├── wallpapers.py
 │   ├── notifier.py
 │   └── hypr_integration.py
 └── ui/
     ├── theme.py     # centralized colors/QSS/animation helpers
     ├── widgets.py   # cards, headers, buttons, custom dialogs
     ├── window.py    # frameless shell + panel layout
-    └── <section>.py # todo, calendar, wallpapers, notes, events
+    └── <section>.py # todo, calendar, events
 ```
 
 ## State
@@ -54,9 +53,6 @@ Writes are atomic (temp file + `os.replace`) and guarded by an advisory
 
 - Click the Waybar clock/date to open the dashboard; click it again to close.
 - `Escape` or a click outside the card also closes it.
-- Wallpaper tiles apply the wallpaper through
-  `wallpaper_switch.sh apply <path>` — the same result as the SUPER+T picker.
-  The SUPER+T binding is unchanged.
 - Event notifications are checked by a user systemd timer every minute,
   even when the dashboard is closed, and survive reboots.
 
