@@ -7,7 +7,7 @@ from datetime import date
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
-from .core import events, ipc
+from .core import events, ipc, scheduler
 from .core.hypr_integration import WINDOW_CLASS
 from .core.models import CalendarSelection
 from .core.store import load
@@ -27,10 +27,12 @@ class DashboardApp:
         self.qapp.setQuitOnLastWindowClosed(True)
         apply_theme(self.qapp)
 
-        # Catch up on missed events/notifications before the first paint.
-        events.check_all(send=True)
+        # Reconcile overdue events only. Notifications are owned by the
+        # systemd timer so opening the GUI never blocks on notify-send.
+        events.refresh_completion()
 
         state = load()
+        scheduler.arm_all(state)
         today = date.today()
         # Calendar always opens on today; navigation is session-only.
         state.calendar = CalendarSelection(
@@ -38,7 +40,7 @@ class DashboardApp:
         )
         self.window = DashboardWindow(state)
         self._timer = QTimer()
-        self._timer.setInterval(60_000)
+        self._timer.setInterval(15_000)
         self._timer.timeout.connect(self._tick)
 
         # The launcher signals "close" through a file: Python signal handlers
@@ -49,7 +51,7 @@ class DashboardApp:
         self._close_poll.timeout.connect(self._poll_close)
 
     def _tick(self) -> None:
-        events.check_all(send=True)
+        events.refresh_completion()
         self.window.reload_state()
 
     def _poll_close(self) -> None:

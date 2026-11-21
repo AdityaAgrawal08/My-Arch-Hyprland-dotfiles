@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ..core import scheduler
 from ..core.models import DashboardState, Event, new_id
 from ..core.store import save as save_state
 from .theme import fade_swap
@@ -60,7 +61,12 @@ class EventRow(QFrame):
             name.setObjectName("struck")
         text_column.addWidget(name)
 
-        moment = QLabel(_format_moment(event.end_at))
+        moment_text = _format_moment(event.end_at)
+        if event.dismissed:
+            moment_text += "  •  Dismissed"
+        elif event.snoozed and not event.completed:
+            moment_text += "  •  Snoozed 5m"
+        moment = QLabel(moment_text)
         moment.setObjectName("subtext")
         text_column.addWidget(moment)
 
@@ -156,7 +162,9 @@ class EventsPanel(QWidget):
         if event is not None and event.notify_at:
             notify_default = QDateTime.fromSecsSinceEpoch(int(event.notify_at))
         else:
-            notify_default = end_default.addSecs(-3600)
+            # By default the reminder fires exactly when the event time is
+            # reached. The user may still set an earlier time explicitly.
+            notify_default = end_default
 
         dialog = FieldDialog(
             self,
@@ -183,6 +191,25 @@ class EventsPanel(QWidget):
                 },
             ],
         )
+        # Keep the reminder glued to the event time until the user explicitly
+        # edits the notification field.
+        end_widget = dialog._widgets["end_at"]
+        notify_widget = dialog._widgets["notify_at"]
+        notify_edited = False
+
+        def on_notify_changed(_dt=None) -> None:
+            nonlocal notify_edited
+            notify_edited = True
+
+        def on_end_changed(dt) -> None:
+            if not notify_edited:
+                notify_widget.blockSignals(True)
+                notify_widget.setDateTime(dt)
+                notify_widget.blockSignals(False)
+
+        notify_widget.dateTimeChanged.connect(on_notify_changed)
+        end_widget.dateTimeChanged.connect(on_end_changed)
+
         if dialog.exec() != FieldDialog.Accepted:
             return None
         values = dialog.values()
@@ -193,6 +220,9 @@ class EventsPanel(QWidget):
         notify_at = float(values["notify_at"].toSecsSinceEpoch())
         if end_at <= 0 or notify_at <= 0:
             return None
+        # A reminder must never be scheduled past the event itself.
+        if notify_at > end_at:
+            notify_at = end_at
 
         previous_notify = event.notify_at if event is not None else 0.0
         if event is None:
@@ -205,9 +235,12 @@ class EventsPanel(QWidget):
         # an unrelated field never fires the same notification twice.
         if notify_at != previous_notify:
             event.notified = False
+            event.snoozed = False
+            event.dismissed = False
         return event
 
     def _delete(self, event_id: str) -> None:
+        scheduler.cancel(event_id)
         self.state.events = [
             event for event in self.state.events if event.id != event_id
         ]
@@ -220,6 +253,7 @@ class EventsPanel(QWidget):
             return
         self.state.events.append(event)
         save_state(self.state)
+        scheduler.arm(event)
         self._reload()
 
     def _edit(self, event_id: str) -> None:
@@ -229,4 +263,5 @@ class EventsPanel(QWidget):
         if self._form(event) is None:
             return
         save_state(self.state)
+        scheduler.arm(event)
         self._reload()

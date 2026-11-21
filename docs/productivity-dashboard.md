@@ -53,8 +53,16 @@ Writes are atomic (temp file + `os.replace`) and guarded by an advisory
 
 - Click the Waybar clock/date to open the dashboard; click it again to close.
 - `Escape` or a click outside the card also closes it.
-- Event notifications are checked by a user systemd timer every minute,
-  even when the dashboard is closed, and survive reboots.
+- Event notifications fire at the **exact configured second** via a transient
+  systemd timer (`systemd-run --user --on-calendar=...`) armed whenever an
+  event is saved or snoozed. A persistent minutely timer remains as a reboot /
+  catch-up fallback.
+- The notification is a real always-on-top popup with two **clickable buttons**:
+  **Snooze · 5 min** (default — ignoring or closing the popup also snoozes it)
+  and **Dismiss** (no further reminder). The title is
+  `{Name} - {Event time (dd-MM-yyyy HH:mm)}`.
+- A snooze that would land at or past the event time is dropped from the
+  schedule entirely.
 
 ## Verification
 

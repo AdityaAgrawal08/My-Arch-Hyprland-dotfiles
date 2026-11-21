@@ -23,7 +23,26 @@ def main() -> int:
         action="store_true",
         help="Check event deadlines/notifications once and exit (timer mode)",
     )
+    parser.add_argument(
+        "--notify",
+        metavar="EVENT_ID",
+        help="Show the clickable notification popup for one event",
+    )
     args = parser.parse_args()
+
+    if args.notify:
+        from dashboard.core import store
+        from dashboard.core.events import event_body, notification_title
+        from dashboard.ui.notification import show
+
+        state = store.load()
+        event = next((item for item in state.events if item.id == args.notify), None)
+        if event is None:
+            return 1
+        action = show(notification_title(event), event_body(event))
+        if action:
+            print(action)
+        return 0
 
     if args.check_notifications:
         from dashboard.core import events

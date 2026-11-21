@@ -73,6 +73,8 @@ class Event:
     notify_at: float = 0.0
     completed: bool = False
     notified: bool = False
+    dismissed: bool = False
+    snoozed: bool = False
 
     @classmethod
     def from_dict(cls, data: Any) -> "Event":
@@ -85,6 +87,8 @@ class Event:
             notify_at=_as_float(data.get("notify_at")),
             completed=bool(data.get("completed", False)),
             notified=bool(data.get("notified", False)),
+            dismissed=bool(data.get("dismissed", False)),
+            snoozed=bool(data.get("snoozed", False)),
         )
 
 

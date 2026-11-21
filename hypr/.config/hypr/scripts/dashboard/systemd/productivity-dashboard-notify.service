@@ -5,4 +5,7 @@ ConditionPathExists=%h/.local/bin/productivity-dashboard
 
 [Service]
 Type=oneshot
+# The notification waits for the user's Snooze/Dismiss action (up to ~98s).
+TimeoutStartSec=180
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=%t/bus
 ExecStart=%h/.local/bin/productivity-dashboard --check-notifications
