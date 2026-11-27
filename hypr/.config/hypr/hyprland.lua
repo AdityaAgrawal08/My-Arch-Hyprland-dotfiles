@@ -2,7 +2,7 @@
 
 local mainMod = "SUPER"
 local terminal = "kitty"
-local fileManager = "thunar"
+local fileManager = "dolphin"
 local menu = "~/.config/wofi/app-launcher.sh"
 
 
