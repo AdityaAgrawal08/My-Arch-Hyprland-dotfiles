@@ -283,18 +283,19 @@ class TaskRow(QFrame):
     def mousePressEvent(self, event) -> None:  # type: ignore[no-untyped-def]
         if self._owner is not None:
             self._owner._row_press(self, event)
+        # Accept explicitly. Qt's default implementation would ignore the
+        # event again, letting it bubble to DashboardWindow and close us.
         event.accept()
-        super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event) -> None:  # type: ignore[no-untyped-def]
         if self._owner is not None:
             self._owner._row_move(self, event)
-        super().mouseMoveEvent(event)
+        event.accept()
 
     def mouseReleaseEvent(self, event) -> None:  # type: ignore[no-untyped-def]
         if self._owner is not None:
             self._owner._row_release(self, event)
-        super().mouseReleaseEvent(event)
+        event.accept()
 
 
 class TodoList(QScrollArea):
@@ -349,6 +350,12 @@ class TodoList(QScrollArea):
         for row in rows:
             row.resize(self._viewport.width(), ROW_H)
 
+    def _notify_drag(self, active: bool) -> None:
+        window = self.window()
+        setter = getattr(window, "set_drag_active", None)
+        if setter is not None:
+            setter(active)
+
     def _stop_animations(self) -> None:
         for animation in self._animations.values():
             animation.stop()
@@ -356,6 +363,13 @@ class TodoList(QScrollArea):
         if self._finish_animation is not None:
             self._finish_animation.stop()
             self._finish_animation = None
+        # A reload during a drag must not leave the list stuck.
+        self._drag_row = None
+        self._dragging = False
+        self._animating = False
+        self._source = -1
+        self._target = -1
+        self._notify_drag(False)
 
     def _animate_to(self, row: TaskRow, y: int, duration: int = 170) -> None:
         previous = self._animations.get(row)
@@ -397,6 +411,7 @@ class TodoList(QScrollArea):
 
     def _begin_drag(self) -> None:
         self._dragging = True
+        self._notify_drag(True)
         row = self._drag_row
         if row is None:
             return
@@ -434,6 +449,8 @@ class TodoList(QScrollArea):
         self._drag_row = None
         if not self._dragging:
             self._source = -1
+            self._target = -1
+            self._notify_drag(False)
             return
         self._dragging = False
         self._animating = True
@@ -461,6 +478,7 @@ class TodoList(QScrollArea):
             self._finish_animation = None
             self._animating = False
             self._animations.clear()
+            self._notify_drag(False)
             if committed and source_id:
                 self.reorder_requested.emit(source_id, target_index)
             elif source_index != target_index:

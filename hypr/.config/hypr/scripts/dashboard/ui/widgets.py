@@ -23,6 +23,16 @@ from PySide6.QtWidgets import (
 from .theme import COLORS
 
 
+class MouseAwareMixin:
+    """Accepts presses so they never bubble to the transparent root window."""
+
+    def mousePressEvent(self, event) -> None:  # type: ignore[no-untyped-def]
+        event.accept()
+
+    def mouseReleaseEvent(self, event) -> None:  # type: ignore[no-untyped-def]
+        event.accept()
+
+
 class Card(QFrame):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -159,7 +169,7 @@ class RoundCheckBox(QCheckBox):
         rect = QRectF(1.5, 1.5, 15.0, 15.0)
 
         painter.setPen(QPen(QColor(COLORS["border"]), 1.5))
-        painter.setBrush(QBrush(QColor(COLORS["card_alt"])))
+        painter.setBrush(QBrush(QColor(COLORS["panel_alt"])))
         painter.drawRoundedRect(rect, 4, 4)
 
         if self.isChecked():

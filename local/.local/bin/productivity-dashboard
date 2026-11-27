@@ -14,15 +14,29 @@ RUNTIME="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 LOCK="$RUNTIME/productivity-dashboard.launch.lock"
 PIDFILE="$RUNTIME/productivity-dashboard.pid"
 CLOSEFILE="$RUNTIME/productivity-dashboard.close"
+STAMPFILE="$RUNTIME/productivity-dashboard.click"
 mkdir -p "$RUNTIME" 2>/dev/null || true
 
 exec 9>"$LOCK"
 flock -n 9 || exit 0
 
+# Debounce rapid clicks (double-clicking the Waybar clock would otherwise
+# start and immediately close the dashboard).
+now="$(date +%s%3N 2>/dev/null || printf '%s000' "$(date +%s)")"
+last=0
+[[ -f "$STAMPFILE" ]] && last="$(tr -dc '0-9' < "$STAMPFILE" 2>/dev/null || printf '0')"
+if (( now - last < 400 )); then
+    exec 9>&-
+    exit 0
+fi
+printf '%s\n' "$now" > "$STAMPFILE"
+
 if [[ -f "$PIDFILE" ]]; then
     pid="$(tr -dc '0-9' < "$PIDFILE" 2>/dev/null || true)"
     if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null \
-        && tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null | grep -q 'dashboard/main.py'; then
+        && [[ -r "/proc/$pid/cmdline" ]] \
+        && tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null \
+            | grep -qF -- "$APP"; then
         touch "$CLOSEFILE" 2>/dev/null || true
         exec 9>&-
         exit 0

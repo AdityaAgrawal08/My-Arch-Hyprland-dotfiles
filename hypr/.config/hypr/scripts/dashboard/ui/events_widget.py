@@ -21,6 +21,7 @@ from .widgets import (
     EmptyState,
     FieldDialog,
     IconButton,
+    MouseAwareMixin,
     RowActionButton,
     SectionHeader,
 )
@@ -32,7 +33,7 @@ def _format_moment(timestamp: float) -> str:
     return datetime.fromtimestamp(timestamp).strftime("%a, %d %b · %H:%M")
 
 
-class EventRow(QFrame):
+class EventRow(MouseAwareMixin, QFrame):
     edit_requested = Signal(str)
     delete_requested = Signal(str)
 

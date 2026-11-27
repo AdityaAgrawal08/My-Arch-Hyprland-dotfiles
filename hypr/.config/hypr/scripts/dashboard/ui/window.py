@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time
+
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtWidgets import QApplication, QGridLayout, QVBoxLayout, QWidget
 
@@ -23,6 +25,10 @@ class DashboardWindow(QWidget):
         self.setAttribute(Qt.WA_TranslucentBackground, True)
         self.setWindowTitle("Productivity Dashboard")
         self._raised = False
+        self._drag_active = False
+        # Ignore outside-clicks while the window is still being mapped; the
+        # click that opened it can otherwise land on the new window.
+        self._startup_deadline = time.monotonic() + 1.5
 
         x, y, win_w, win_h, card_max_w = hypr_integration.dashboard_geometry()
         self.setGeometry(x, y, win_w, win_h)
@@ -87,10 +93,29 @@ class DashboardWindow(QWidget):
         self.calendar.set_state(self.state)
         self.events.set_state(self.state)
 
+    def set_drag_active(self, active: bool) -> None:
+        self._drag_active = active
+
     def mousePressEvent(self, event) -> None:  # type: ignore[no-untyped-def]
-        if not self.card.geometry().contains(event.position().toPoint()):
+        position = event.position().toPoint()
+        # A press that reached the root with a child under the cursor belongs
+        # to that child (e.g. a drag in progress); never treat it as outside.
+        on_root = self.childAt(position) is None
+        if (
+            on_root
+            and not self._drag_active
+            and time.monotonic() >= self._startup_deadline
+            and not self.card.geometry().contains(position)
+        ):
             self.close()
-        super().mousePressEvent(event)
+        event.accept()
+
+    def mouseReleaseEvent(self, event) -> None:  # type: ignore[no-untyped-def]
+        # Safety net: if a drag ends outside the list, make sure the window
+        # never stays in a "dragging" state.
+        if self._drag_active:
+            self._drag_active = False
+        event.accept()
 
     def keyPressEvent(self, event) -> None:  # type: ignore[no-untyped-def]
         if event.key() == Qt.Key_Escape:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import signal
 import sys
+import time
 from datetime import date
 
 from PySide6.QtCore import QTimer
@@ -46,6 +47,9 @@ class DashboardApp:
         # The launcher signals "close" through a file: Python signal handlers
         # are unreliable while Qt owns the main thread in C++.
         ipc.clear_close_request()
+        # The click that opened us can arrive as a second toggle; ignore
+        # close requests during the first 1.5 seconds.
+        self._startup_deadline = time.monotonic() + 1.5
         self._close_poll = QTimer()
         self._close_poll.setInterval(250)
         self._close_poll.timeout.connect(self._poll_close)
@@ -55,6 +59,9 @@ class DashboardApp:
         self.window.reload_state()
 
     def _poll_close(self) -> None:
+        if time.monotonic() < self._startup_deadline:
+            ipc.clear_close_request()
+            return
         if ipc.close_requested():
             ipc.clear_close_request()
             self.qapp.quit()
